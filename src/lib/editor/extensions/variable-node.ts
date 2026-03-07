@@ -1,8 +1,4 @@
 import { Node, mergeAttributes } from "@tiptap/core";
-import { ReactNodeViewRenderer } from "@tiptap/react";
-
-// Lazy import — the React view will be set after component is loaded
-let VariableView: ReturnType<typeof ReactNodeViewRenderer> | null = null;
 
 export const VariableNode = Node.create({
   name: "variable",
@@ -19,7 +15,7 @@ export const VariableNode = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'span[data-variable]' }];
+    return [{ tag: "span[data-variable]" }];
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -32,12 +28,6 @@ export const VariableNode = Node.create({
       }),
       `{{${node.attrs.name}}}`,
     ];
-  },
-
-  addNodeView() {
-    // Dynamic import to avoid SSR issues
-    const { VariableNodeView } = require("@/components/editor/variable-node-view");
-    return ReactNodeViewRenderer(VariableNodeView);
   },
 });
 

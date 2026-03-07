@@ -1,5 +1,4 @@
 import { Node, mergeAttributes } from "@tiptap/core";
-import { ReactNodeViewRenderer } from "@tiptap/react";
 
 export const SpacerBlock = Node.create({
   name: "spacerBlock",
@@ -14,7 +13,7 @@ export const SpacerBlock = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'div[data-spacer-block]' }];
+    return [{ tag: "div[data-spacer-block]" }];
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -25,10 +24,5 @@ export const SpacerBlock = Node.create({
         style: `height: ${node.attrs.height}px;`,
       }),
     ];
-  },
-
-  addNodeView() {
-    const { SpacerBlockView } = require("@/components/editor/spacer-block-view");
-    return ReactNodeViewRenderer(SpacerBlockView);
   },
 });

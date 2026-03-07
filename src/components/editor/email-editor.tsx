@@ -9,9 +9,7 @@ import Color from "@tiptap/extension-color";
 import TextStyle from "@tiptap/extension-text-style";
 import Placeholder from "@tiptap/extension-placeholder";
 import UnderlineExt from "@tiptap/extension-underline";
-import { useCallback, useEffect, useRef } from "react";
-import tippy, { type Instance as TippyInstance } from "tippy.js";
-import { createRoot } from "react-dom/client";
+import { useCallback, useRef, useState } from "react";
 
 import { VariableNode } from "@/lib/editor/extensions/variable-node";
 import { ButtonBlock } from "@/lib/editor/extensions/button-block";
@@ -33,6 +31,13 @@ interface EmailEditorProps {
 export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
+
+  // Slash command state
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashItems, setSlashItems] = useState<SlashCommandItem[]>([]);
+  const [slashPos, setSlashPos] = useState({ top: 0, left: 0 });
+  const slashCommandRef = useRef<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean } | null>(null);
+  const slashRangeRef = useRef<any>(null);
 
   const editor = useEditor({
     extensions: [
@@ -74,83 +79,37 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
             );
           },
           render: () => {
-            let popup: TippyInstance[] | undefined;
-            let component: {
-              root: ReturnType<typeof createRoot>;
-              ref: { onKeyDown: (props: { event: KeyboardEvent }) => boolean } | null;
-            } | null = null;
-
             return {
               onStart: (props: any) => {
-                const container = document.createElement("div");
-                const root = createRoot(container);
-                const ref = { current: null as any };
-
-                root.render(
-                  <SlashCommandListWrapper
-                    items={props.items}
-                    command={props.command}
-                    refCallback={(r: any) => {
-                      ref.current = r;
-                    }}
-                  />
-                );
-
-                component = { root, ref: ref.current };
-
-                if (!props.clientRect) return;
-
-                popup = tippy("body", {
-                  getReferenceClientRect: props.clientRect,
-                  appendTo: () => document.body,
-                  content: container,
-                  showOnCreate: true,
-                  interactive: true,
-                  trigger: "manual",
-                  placement: "bottom-start",
-                  animation: false,
-                });
+                setSlashItems(props.items);
+                slashRangeRef.current = props.range;
+                if (props.clientRect) {
+                  const rect = props.clientRect();
+                  if (rect) {
+                    setSlashPos({ top: rect.bottom + 4, left: rect.left });
+                  }
+                }
+                setSlashOpen(true);
               },
               onUpdate: (props: any) => {
-                if (!component) return;
-                const container = document.createElement("div");
-                const root = createRoot(container);
-                const ref = { current: null as any };
-
-                component.root.unmount();
-
-                root.render(
-                  <SlashCommandListWrapper
-                    items={props.items}
-                    command={props.command}
-                    refCallback={(r: any) => {
-                      ref.current = r;
-                    }}
-                  />
-                );
-
-                component = { root, ref: ref.current };
-
-                if (popup?.[0]) {
-                  popup[0].setContent(container);
-                  if (props.clientRect) {
-                    popup[0].setProps({
-                      getReferenceClientRect: props.clientRect,
-                    });
+                setSlashItems(props.items);
+                slashRangeRef.current = props.range;
+                if (props.clientRect) {
+                  const rect = props.clientRect();
+                  if (rect) {
+                    setSlashPos({ top: rect.bottom + 4, left: rect.left });
                   }
                 }
               },
               onKeyDown: (props: any) => {
                 if (props.event.key === "Escape") {
-                  popup?.[0]?.hide();
+                  setSlashOpen(false);
                   return true;
                 }
-                return component?.ref?.onKeyDown?.(props) ?? false;
+                return slashCommandRef.current?.onKeyDown(props) ?? false;
               },
               onExit: () => {
-                popup?.[0]?.destroy();
-                component?.root.unmount();
-                component = null;
+                setSlashOpen(false);
               },
             };
           },
@@ -174,6 +133,16 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
     },
   });
 
+  const handleSlashCommand = useCallback(
+    (item: SlashCommandItem) => {
+      if (editor && slashRangeRef.current) {
+        item.command({ editor, range: slashRangeRef.current });
+      }
+      setSlashOpen(false);
+    },
+    [editor]
+  );
+
   if (!editor) return null;
 
   return (
@@ -190,25 +159,20 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
           <EditorContent editor={editor} />
         </div>
       </div>
-    </div>
-  );
-}
 
-// Wrapper to forward ref to SlashCommandList
-function SlashCommandListWrapper({
-  items,
-  command,
-  refCallback,
-}: {
-  items: SlashCommandItem[];
-  command: (item: SlashCommandItem) => void;
-  refCallback: (ref: any) => void;
-}) {
-  return (
-    <SlashCommandList
-      items={items}
-      command={command}
-      ref={(r) => refCallback(r)}
-    />
+      {/* Slash command popup */}
+      {slashOpen && slashItems.length > 0 && (
+        <div
+          className="fixed z-50"
+          style={{ top: slashPos.top, left: slashPos.left }}
+        >
+          <SlashCommandList
+            items={slashItems}
+            command={handleSlashCommand}
+            ref={slashCommandRef}
+          />
+        </div>
+      )}
+    </div>
   );
 }

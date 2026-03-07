@@ -1,5 +1,4 @@
 import { Node, mergeAttributes } from "@tiptap/core";
-import { ReactNodeViewRenderer } from "@tiptap/react";
 
 export const ButtonBlock = Node.create({
   name: "buttonBlock",
@@ -16,7 +15,7 @@ export const ButtonBlock = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'div[data-button-block]' }];
+    return [{ tag: "div[data-button-block]" }];
   },
 
   renderHTML({ node, HTMLAttributes }) {
@@ -37,10 +36,5 @@ export const ButtonBlock = Node.create({
         node.attrs.text,
       ],
     ];
-  },
-
-  addNodeView() {
-    const { ButtonBlockView } = require("@/components/editor/button-block-view");
-    return ReactNodeViewRenderer(ButtonBlockView);
   },
 });
