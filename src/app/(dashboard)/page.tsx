@@ -1,4 +1,4 @@
-import { Send, Users, BarChart3, MousePointerClick, ArrowUpRight } from "lucide-react";
+import { type LucideIcon, Send, Users, BarChart3, MousePointerClick, ArrowUpRight } from "lucide-react";
 
 function MetricCard({
   label,
@@ -9,7 +9,7 @@ function MetricCard({
   label: string;
   value: string;
   change?: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
 }) {
   return (
     <div className="group rounded-lg border border-border bg-background p-4 transition-colors hover:bg-muted/30">
