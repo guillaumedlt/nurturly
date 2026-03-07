@@ -45,6 +45,7 @@ export const users = pgTable("users", {
   email: text("email").unique().notNull(),
   emailVerified: timestamp("email_verified", { mode: "date" }),
   image: text("image"),
+  passwordHash: text("password_hash"),
   senderName: text("sender_name"),
   senderEmail: text("sender_email"),
   sesDomainVerified: boolean("ses_domain_verified").default(false),
