@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Trash2, Loader2, Send } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -21,7 +20,6 @@ interface CampaignRow {
 }
 
 export function CampaignsPageClient() {
-  const router = useRouter();
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -52,7 +50,7 @@ export function CampaignsPageClient() {
       });
       if (res.ok) {
         const campaign = await res.json();
-        router.push(`/campaigns/${campaign.id}`);
+        window.location.href = `/campaigns/${campaign.id}`;
       }
     } finally {
       setCreating(false);
@@ -135,7 +133,7 @@ export function CampaignsPageClient() {
               {campaigns.map((campaign) => (
                 <tr
                   key={campaign.id}
-                  onClick={() => router.push(`/campaigns/${campaign.id}`)}
+                  onClick={() => (window.location.href = `/campaigns/${campaign.id}`)}
                   className="group h-[38px] cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted/30"
                 >
                   <td className="px-4 py-2">

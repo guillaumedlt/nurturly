@@ -1,12 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 export default function NewCampaignPage() {
-  const router = useRouter();
-
   useEffect(() => {
     async function create() {
       const res = await fetch("/api/campaigns", {
@@ -16,13 +13,13 @@ export default function NewCampaignPage() {
       });
       if (res.ok) {
         const campaign = await res.json();
-        router.replace(`/campaigns/${campaign.id}`);
+        window.location.href = `/campaigns/${campaign.id}`;
       } else {
-        router.replace("/campaigns");
+        window.location.href = "/campaigns";
       }
     }
     create();
-  }, [router]);
+  }, []);
 
   return (
     <div className="flex items-center justify-center py-20">

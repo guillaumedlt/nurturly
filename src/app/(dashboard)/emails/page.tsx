@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Trash2, Loader2, Mail } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -15,7 +14,6 @@ interface EmailTemplate {
 }
 
 export default function EmailsPage() {
-  const router = useRouter();
   const [emails, setEmails] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -46,7 +44,7 @@ export default function EmailsPage() {
       });
       if (res.ok) {
         const email = await res.json();
-        router.push(`/emails/${email.id}`);
+        window.location.href = `/emails/${email.id}`;
       }
     } finally {
       setCreating(false);
@@ -118,7 +116,7 @@ export default function EmailsPage() {
               {emails.map((email) => (
                 <tr
                   key={email.id}
-                  onClick={() => router.push(`/emails/${email.id}`)}
+                  onClick={() => (window.location.href = `/emails/${email.id}`)}
                   className="group h-[38px] cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted/30"
                 >
                   <td className="px-4 py-2">
