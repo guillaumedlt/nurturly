@@ -1,70 +1,59 @@
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function SettingsPage() {
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-xl space-y-10">
       <div>
-        <h2 className="text-[28px] font-semibold tracking-tight">Settings</h2>
-        <p className="text-[13px] text-muted-foreground">Manage your account and email configuration.</p>
+        <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">Settings</h2>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Manage your account and email configuration.</p>
       </div>
 
       {/* Profile */}
       <section className="space-y-4">
-        <div>
-          <h3 className="text-[14px] font-medium">Profile</h3>
-          <p className="text-[13px] text-muted-foreground">Your account information.</p>
-        </div>
-        <Separator />
-        <div className="grid gap-4">
-          <div className="grid gap-1.5">
-            <label className="text-label">Name</label>
-            <Input placeholder="Your name" className="text-[13px]" />
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Profile</h3>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Name</label>
+            <Input placeholder="Your name" className="h-9 text-[13px]" />
           </div>
-          <div className="grid gap-1.5">
-            <label className="text-label">Email</label>
-            <Input placeholder="you@company.com" className="text-[13px]" disabled />
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Email</label>
+            <Input placeholder="you@company.com" className="h-9 text-[13px]" disabled />
           </div>
         </div>
       </section>
+
+      <div className="h-px bg-border" />
 
       {/* Sender Identity */}
       <section className="space-y-4">
-        <div>
-          <h3 className="text-[14px] font-medium">Sender Identity</h3>
-          <p className="text-[13px] text-muted-foreground">Configure how your emails appear to recipients.</p>
-        </div>
-        <Separator />
-        <div className="grid gap-4">
-          <div className="grid gap-1.5">
-            <label className="text-label">From Name</label>
-            <Input placeholder="Nurturly" className="text-[13px]" />
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Sender Identity</h3>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">From Name</label>
+            <Input placeholder="Nurturly" className="h-9 text-[13px]" />
           </div>
-          <div className="grid gap-1.5">
-            <label className="text-label">From Email</label>
-            <Input placeholder="hello@yourdomain.com" className="text-[13px]" />
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">From Email</label>
+            <Input placeholder="hello@yourdomain.com" className="h-9 text-[13px]" />
           </div>
         </div>
       </section>
 
-      {/* Integrations placeholder */}
+      <div className="h-px bg-border" />
+
+      {/* Integrations */}
       <section className="space-y-4">
-        <div>
-          <h3 className="text-[14px] font-medium">Integrations</h3>
-          <p className="text-[13px] text-muted-foreground">Connect external services.</p>
-        </div>
-        <Separator />
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[13px] font-medium">HubSpot</p>
-              <p className="text-[12px] text-muted-foreground">Sync contacts from your HubSpot CRM.</p>
-            </div>
-            <Button variant="outline" size="sm" className="text-[13px]" disabled>
-              Coming soon
-            </Button>
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Integrations</h3>
+        <div className="flex items-center justify-between rounded-lg border border-border p-4">
+          <div>
+            <p className="text-[13px] font-medium text-foreground">HubSpot</p>
+            <p className="text-[12px] text-muted-foreground">Sync contacts from your HubSpot CRM.</p>
           </div>
+          <Button variant="outline" size="sm" className="h-8 text-[12px]" disabled>
+            Coming soon
+          </Button>
         </div>
       </section>
     </div>

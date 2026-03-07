@@ -12,17 +12,15 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
   return (
     <div className="space-y-0">
-      {/* Header */}
       <div className="flex items-center gap-4 border-b border-border px-4 py-3">
         {Array.from({ length: cols }).map((_, i) => (
-          <Skeleton key={i} className="h-3 w-24" />
+          <Skeleton key={i} className="h-2.5 w-20" />
         ))}
       </div>
-      {/* Rows */}
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 border-b border-border px-4 py-3">
+        <div key={i} className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-b-0">
           {Array.from({ length: cols }).map((_, j) => (
-            <Skeleton key={j} className={cn("h-3", j === 0 ? "w-40" : "w-20")} />
+            <Skeleton key={j} className={cn("h-2.5", j === 0 ? "w-36" : "w-16")} />
           ))}
         </div>
       ))}
@@ -32,9 +30,9 @@ export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
 
 export function MetricCardSkeleton() {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <Skeleton className="mb-2 h-2.5 w-16" />
-      <Skeleton className="h-6 w-24" />
+    <div className="rounded-lg border border-border p-4">
+      <Skeleton className="mb-3 h-2 w-14" />
+      <Skeleton className="h-5 w-20" />
     </div>
   );
 }

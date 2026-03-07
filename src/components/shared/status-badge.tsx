@@ -4,14 +4,14 @@ type Status = "draft" | "active" | "paused" | "scheduled" | "sending" | "sent" |
 
 const statusStyles: Record<Status, string> = {
   draft: "bg-muted text-muted-foreground",
-  active: "bg-emerald-50 text-emerald-700",
-  paused: "bg-amber-50 text-amber-700",
-  scheduled: "bg-blue-50 text-blue-700",
-  sending: "bg-indigo-50 text-indigo-700",
-  sent: "bg-emerald-50 text-emerald-700",
-  completed: "bg-emerald-50 text-emerald-700",
+  active: "bg-foreground text-background",
+  paused: "bg-muted text-muted-foreground",
+  scheduled: "bg-muted text-foreground",
+  sending: "bg-foreground text-background",
+  sent: "bg-muted text-foreground",
+  completed: "bg-muted text-foreground",
   archived: "bg-muted text-muted-foreground",
-  cancelled: "bg-red-50 text-red-700",
+  cancelled: "bg-muted text-muted-foreground",
 };
 
 interface StatusBadgeProps {
@@ -23,7 +23,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium capitalize",
+        "inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium capitalize",
         statusStyles[status],
         className
       )}

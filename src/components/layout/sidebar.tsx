@@ -11,12 +11,11 @@ import {
   BarChart3,
   Settings,
   Search,
-  ChevronsLeft,
-  ChevronsRight,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -27,59 +26,55 @@ const navItems = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
-const bottomItems = [
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
 
-  return (
-    <aside
-      className={cn(
-        "flex h-screen flex-col border-r border-border bg-sidebar transition-all duration-200",
-        collapsed ? "w-[52px]" : "w-[200px]"
-      )}
-    >
+  const navContent = (
+    <>
       {/* Logo */}
-      <div className={cn(
-        "flex h-[52px] items-center border-b border-border px-3",
-        collapsed ? "justify-center" : "gap-2"
-      )}>
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary">
-          <span className="text-[11px] font-bold text-primary-foreground">N</span>
-        </div>
-        {!collapsed && (
-          <span className="text-[13px] font-semibold text-foreground">Nurturly</span>
-        )}
+      <div className="flex h-14 items-center justify-between px-4">
+        <Link href="/" className="flex items-center gap-2.5">
+          <span className="text-[15px] font-semibold tracking-[-0.03em] text-foreground">
+            nurturly
+          </span>
+        </Link>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground lg:hidden"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Search trigger */}
-      {!collapsed && (
-        <div className="px-2 pt-2">
-          <button
-            className="flex w-full items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent"
-            onClick={() => {
-              document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
-            }}
-          >
-            <Search className="h-3.5 w-3.5" />
-            <span>Search...</span>
-            <kbd className="ml-auto text-[10px] text-muted-foreground/60 font-mono">
-              <span className="text-[9px]">&#8984;</span>K
-            </kbd>
-          </button>
-        </div>
-      )}
+      {/* Search */}
+      <div className="px-3 pb-1">
+        <button
+          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] text-muted-foreground transition-colors hover:bg-accent"
+          onClick={() => {
+            setMobileOpen(false);
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+          }}
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span>Search</span>
+          <kbd className="ml-auto hidden rounded border border-border px-1 py-0.5 font-mono text-[9px] text-muted-foreground/50 sm:inline-block">
+            &#8984;K
+          </kbd>
+        </button>
+      </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 px-2 pt-2">
+      <nav className="flex-1 space-y-px px-3 pt-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -88,63 +83,64 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-colors duration-150",
+                "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-all duration-150",
                 active
-                  ? "bg-accent font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                collapsed && "justify-center px-0"
+                  ? "bg-foreground text-background font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" strokeWidth={active ? 2 : 1.5} />
-              {!collapsed && <span>{item.label}</span>}
+              <Icon className="h-[15px] w-[15px] shrink-0" strokeWidth={1.5} />
+              <span>{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
       {/* Bottom */}
-      <div className="space-y-0.5 border-t border-border px-2 py-2">
-        {bottomItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-colors duration-150",
-                active
-                  ? "bg-accent font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                collapsed && "justify-center px-0"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" strokeWidth={active ? 2 : 1.5} />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-
-        {/* Collapse toggle */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setCollapsed(!collapsed)}
+      <div className="border-t border-border px-3 py-2">
+        <Link
+          href="/settings"
           className={cn(
-            "w-full justify-center text-muted-foreground hover:text-foreground",
-            !collapsed && "justify-start gap-2.5 px-2.5"
+            "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-all duration-150",
+            pathname.startsWith("/settings")
+              ? "bg-foreground text-background font-medium"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
           )}
         >
-          {collapsed ? (
-            <ChevronsRight className="h-4 w-4" />
-          ) : (
-            <>
-              <ChevronsLeft className="h-4 w-4" />
-              <span className="text-[13px]">Collapse</span>
-            </>
-          )}
-        </Button>
+          <Settings className="h-[15px] w-[15px] shrink-0" strokeWidth={1.5} />
+          <span>Settings</span>
+        </Link>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile trigger */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed left-4 top-4 z-40 flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background shadow-sm transition-colors hover:bg-accent lg:hidden"
+      >
+        <Menu className="h-4 w-4" />
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-[220px] flex-col border-r border-border bg-background transition-transform duration-200 lg:static lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {navContent}
+      </aside>
+    </>
   );
 }

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -18,26 +17,28 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-[340px] space-y-6">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-[320px] space-y-8">
         {/* Logo */}
-        <div className="flex flex-col items-center space-y-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-            <span className="text-[14px] font-bold text-primary-foreground">N</span>
+        <div className="flex flex-col items-center space-y-3">
+          <span className="text-[15px] font-semibold tracking-[-0.03em] text-foreground">
+            nurturly
+          </span>
+          <div className="space-y-1 text-center">
+            <h1 className="text-[15px] font-medium text-foreground">Sign in</h1>
+            <p className="text-[12px] text-muted-foreground">
+              Email nurturing & newsletters, simplified.
+            </p>
           </div>
-          <h1 className="text-[20px] font-semibold tracking-tight">Sign in to Nurturly</h1>
-          <p className="text-[13px] text-muted-foreground">
-            Email nurturing & newsletters, simplified.
-          </p>
         </div>
 
         {/* Google */}
         <Button
           variant="outline"
-          className="w-full text-[13px]"
+          className="h-9 w-full text-[12px]"
           onClick={() => signIn("google", { callbackUrl: "/" })}
         >
-          <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+          <svg className="mr-2 h-3.5 w-3.5" viewBox="0 0 24 24">
             <path
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
               fill="#4285F4"
@@ -59,9 +60,9 @@ export default function LoginPage() {
         </Button>
 
         <div className="flex items-center gap-3">
-          <Separator className="flex-1" />
-          <span className="text-[11px] text-muted-foreground">or</span>
-          <Separator className="flex-1" />
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">or</span>
+          <div className="h-px flex-1 bg-border" />
         </div>
 
         {/* Magic link */}
@@ -72,14 +73,14 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="text-[13px]"
+            className="h-9 text-[13px]"
           />
-          <Button type="submit" className="w-full text-[13px]" disabled={loading}>
+          <Button type="submit" className="h-9 w-full text-[12px]" disabled={loading}>
             {loading ? "Sending link..." : "Continue with email"}
           </Button>
         </form>
 
-        <p className="text-center text-[11px] text-muted-foreground">
+        <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
           We&apos;ll send you a magic link to sign in.
           <br />
           No password needed.

@@ -1,13 +1,22 @@
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+
 export default function NewCampaignPage() {
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-[28px] font-semibold tracking-tight">New Campaign</h2>
-        <p className="text-[13px] text-muted-foreground">Create and send an email to your audience.</p>
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <Link
+          href="/campaigns"
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+        </Link>
+        <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">New Campaign</h2>
       </div>
-
-      <div className="rounded-lg border border-border bg-card p-6">
-        <p className="text-[13px] text-muted-foreground">Campaign editor coming soon.</p>
+      <div className="rounded-lg border border-border">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <p className="text-[13px] text-muted-foreground">Campaign editor coming soon.</p>
+        </div>
       </div>
     </div>
   );

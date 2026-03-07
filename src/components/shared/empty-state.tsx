@@ -1,5 +1,6 @@
 import { type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -19,23 +20,23 @@ export function EmptyState({
   actionHref,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
-        <Icon className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+    <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+        <Icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
       </div>
-      <h3 className="mt-4 text-[14px] font-medium text-foreground">{title}</h3>
-      <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">
+      <h3 className="mt-4 text-[13px] font-medium text-foreground">{title}</h3>
+      <p className="mt-1 max-w-[280px] text-[12px] leading-relaxed text-muted-foreground">
         {description}
       </p>
       {actionLabel && (
         actionHref ? (
-          <a href={actionHref}>
-            <Button size="sm" className="mt-4 text-[13px]">
+          <Link href={actionHref}>
+            <Button variant="outline" size="sm" className="mt-4 h-8 text-[12px]">
               {actionLabel}
             </Button>
-          </a>
+          </Link>
         ) : (
-          <Button size="sm" className="mt-4 text-[13px]" onClick={onAction}>
+          <Button variant="outline" size="sm" className="mt-4 h-8 text-[12px]" onClick={onAction}>
             {actionLabel}
           </Button>
         )
