@@ -1,5 +1,4 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/lib/db";
@@ -19,9 +18,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   }),
   providers: [
     Resend({
-      from: process.env.AUTH_RESEND_FROM || "Nurturly <noreply@nurturly.com>",
+      from: process.env.AUTH_RESEND_FROM || "Nurturly <onboarding@resend.dev>",
     }),
-    Google,
   ],
   pages: {
     signIn: "/login",
