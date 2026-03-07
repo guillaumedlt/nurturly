@@ -1,23 +1,32 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 export default function NewCampaignPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    async function create() {
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Untitled campaign" }),
+      });
+      if (res.ok) {
+        const campaign = await res.json();
+        router.replace(`/campaigns/${campaign.id}`);
+      } else {
+        router.replace("/campaigns");
+      }
+    }
+    create();
+  }, [router]);
+
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/campaigns"
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-        </Link>
-        <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">New Campaign</h2>
-      </div>
-      <div className="rounded-lg border border-border">
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-[13px] text-muted-foreground">Campaign editor coming soon.</p>
-        </div>
-      </div>
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
     </div>
   );
 }
