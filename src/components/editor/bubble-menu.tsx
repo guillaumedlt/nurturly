@@ -10,8 +10,9 @@ import {
   AlignCenter,
   AlignRight,
   ChevronDown,
+  Palette,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 
 const FONT_SIZES = [
   { label: "Small", value: "13px" },
@@ -21,9 +22,10 @@ const FONT_SIZES = [
   { label: "XL", value: "28px" },
 ];
 
-const COLORS = [
-  "#0a0a0a", "#525252", "#a3a3a3", "#d4d4d4",
-  "#2563eb", "#16a34a", "#dc2626", "#ea580c", "#7c3aed",
+const PRESET_COLORS = [
+  "#0a0a0a", "#525252", "#a3a3a3",
+  "#2563eb", "#16a34a", "#dc2626",
+  "#ea580c", "#7c3aed", "#0891b2",
 ];
 
 interface EditorBubbleMenuProps {
@@ -33,7 +35,11 @@ interface EditorBubbleMenuProps {
 export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showFontSize, setShowFontSize] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const colorInputRef = useRef<HTMLInputElement>(null);
+
+  const currentColor = editor.getAttributes("textStyle")?.color || "#0a0a0a";
 
   const setLink = useCallback(() => {
     if (linkUrl.trim()) {
@@ -59,6 +65,13 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       setShowLinkInput(true);
     }
   }, [editor]);
+
+  const setColor = useCallback(
+    (color: string) => {
+      editor.chain().focus().setColor(color).run();
+    },
+    [editor]
+  );
 
   const currentFontSize = editor.getAttributes("textStyle")?.fontSize || "15px";
   const currentSizeLabel = FONT_SIZES.find((s) => s.value === currentFontSize)?.label || "Normal";
@@ -103,7 +116,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setShowFontSize(!showFontSize)}
+                onClick={() => { setShowFontSize(!showFontSize); setShowColorPicker(false); }}
                 className="flex h-7 items-center gap-0.5 rounded px-1.5 text-[11px] text-foreground transition-colors hover:bg-accent"
                 title="Font size"
               >
@@ -198,33 +211,87 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
 
             <div className="mx-0.5 h-4 w-px bg-border" />
 
-            {/* Color swatches */}
-            <button
-              type="button"
-              onClick={() => editor.chain().focus().unsetColor().run()}
-              className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-accent"
-              title="Reset color"
-            >
-              <div className="h-3 w-3 rounded-full border border-border bg-background relative overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="h-[1px] w-full bg-destructive rotate-45" />
-                </div>
-              </div>
-            </button>
-            {COLORS.map((color) => (
+            {/* Color picker */}
+            <div className="relative">
               <button
-                key={color}
                 type="button"
-                onClick={() => editor.chain().focus().setColor(color).run()}
+                onClick={() => { setShowColorPicker(!showColorPicker); setShowFontSize(false); }}
                 className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-accent"
-                title={`Color ${color}`}
+                title="Text color"
               >
-                <div
-                  className="h-3 w-3 rounded-full border border-border"
-                  style={{ backgroundColor: color }}
-                />
+                <div className="relative">
+                  <Palette className="h-3.5 w-3.5 text-foreground" />
+                  <div
+                    className="absolute -bottom-0.5 left-0 right-0 h-[2px] rounded-full"
+                    style={{ backgroundColor: currentColor }}
+                  />
+                </div>
               </button>
-            ))}
+
+              {showColorPicker && (
+                <div className="absolute top-full right-0 z-50 mt-1 w-44 rounded-lg border border-border bg-background p-2 shadow-lg">
+                  {/* Preset colors */}
+                  <div className="mb-2 grid grid-cols-5 gap-1">
+                    {/* Reset */}
+                    <button
+                      type="button"
+                      onClick={() => { editor.chain().focus().unsetColor().run(); setShowColorPicker(false); }}
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background transition-all hover:scale-110"
+                      title="Reset color"
+                    >
+                      <div className="h-[1px] w-3 bg-destructive rotate-45" />
+                    </button>
+                    {PRESET_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => { setColor(color); setShowColorPicker(false); }}
+                        className={`h-6 w-6 rounded-full border transition-all hover:scale-110 ${
+                          currentColor === color ? "ring-2 ring-ring ring-offset-1" : "border-border"
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Custom color input */}
+                  <div className="flex items-center gap-2 border-t border-border pt-2">
+                    <div
+                      className="relative h-7 w-7 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border"
+                      onClick={() => colorInputRef.current?.click()}
+                    >
+                      <div
+                        className="absolute inset-0"
+                        style={{ backgroundColor: currentColor }}
+                      />
+                      <input
+                        ref={colorInputRef}
+                        type="color"
+                        value={currentColor}
+                        onChange={(e) => setColor(e.target.value)}
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={currentColor}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^#[0-9a-fA-F]{0,6}$/.test(val)) {
+                          if (val.length === 7) setColor(val);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value;
+                        if (/^#[0-9a-fA-F]{6}$/.test(val)) setColor(val);
+                      }}
+                      placeholder="#000000"
+                      className="h-7 flex-1 rounded-md border border-input bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

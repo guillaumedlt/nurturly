@@ -50,8 +50,14 @@ export function ColumnsBlockView({ node, updateAttributes, selected, editor }: R
           })}
         </div>
 
-        {/* Columns content — flex applied via CSS on [data-node-view-content] */}
-        <NodeViewContent style={{ gap: `${gap}px` }} />
+        {/* Columns content — flex applied directly via className */}
+        <NodeViewContent
+          className="columns-content"
+          style={{
+            display: "flex",
+            gap: `${gap}px`,
+          }}
+        />
       </div>
     </NodeViewWrapper>
   );

@@ -215,13 +215,15 @@
   border-radius: 4px;
 }
 
-/* Columns block — flex on NodeViewContent's rendered container */
-.tiptap [data-columns-block] > div > [data-node-view-content] {
+/* Columns block — flex on any content container inside columns */
+.tiptap [data-columns-block] .columns-content,
+.tiptap [data-columns-block] [data-node-view-content] {
   display: flex !important;
 }
 
-/* Each columnCell wrapper takes equal space */
-.tiptap [data-columns-block] > div > [data-node-view-content] > * {
+/* Each child inside columns content takes equal space */
+.tiptap [data-columns-block] .columns-content > *,
+.tiptap [data-columns-block] [data-node-view-content] > * {
   flex: 1;
   min-width: 0;
 }
