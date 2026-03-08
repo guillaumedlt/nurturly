@@ -50,9 +50,13 @@ export function ColumnsBlockView({ node, updateAttributes, selected, editor }: R
           })}
         </div>
 
-        {/* Flex wrapper — NodeViewContent uses display:contents to become transparent */}
-        <div className="columns-flex-row" style={{ display: "flex", gap: `${gap}px` }}>
-          <NodeViewContent className="columns-content-passthrough" />
+        {/*
+          Flex wrapper. NodeViewContent renders a wrapper div that we make
+          transparent with display:contents via CSS, so the columnCell
+          children become direct flex items of this div.
+        */}
+        <div className="nurturly-columns-row" style={{ display: "flex", gap: `${gap}px` }}>
+          <NodeViewContent />
         </div>
       </div>
     </NodeViewWrapper>
