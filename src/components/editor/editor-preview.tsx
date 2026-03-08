@@ -4,27 +4,36 @@ import { Monitor, Smartphone } from "lucide-react";
 import { useState, useMemo } from "react";
 import { renderEmailHtml } from "@/lib/editor/render-html";
 
+interface EmailStyles {
+  bodyBgColor: string;
+  contentBgColor: string;
+  contentBorderRadius: number;
+  contentPadding: number;
+}
+
 interface EditorPreviewProps {
   content: string; // JSON string
   subject: string;
   preheaderText: string;
+  emailStyles?: EmailStyles;
 }
 
 export function EditorPreview({
   content,
   subject,
   preheaderText,
+  emailStyles,
 }: EditorPreviewProps) {
   const [viewport, setViewport] = useState<"desktop" | "mobile">("desktop");
 
   const html = useMemo(() => {
     try {
       const doc = JSON.parse(content);
-      return renderEmailHtml(doc, { subject, preheaderText });
+      return renderEmailHtml(doc, { subject, preheaderText, emailStyles });
     } catch {
       return "<p>Unable to render preview</p>";
     }
-  }, [content, subject, preheaderText]);
+  }, [content, subject, preheaderText, emailStyles]);
 
   return (
     <div className="flex flex-col items-center">

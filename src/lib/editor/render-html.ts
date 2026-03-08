@@ -242,12 +242,26 @@ function escapeAttr(str: string): string {
 
 export function renderEmailHtml(
   doc: TiptapNode,
-  options?: { subject?: string; preheaderText?: string }
+  options?: {
+    subject?: string;
+    preheaderText?: string;
+    emailStyles?: {
+      bodyBgColor?: string;
+      contentBgColor?: string;
+      contentBorderRadius?: number;
+      contentPadding?: number;
+    };
+  }
 ): string {
   const body = renderNode(doc);
   const preheader = options?.preheaderText
     ? `<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">${escapeHtml(options.preheaderText)}</div>`
     : "";
+
+  const bodyBg = options?.emailStyles?.bodyBgColor || "#f5f5f5";
+  const contentBg = options?.emailStyles?.contentBgColor || "#ffffff";
+  const contentRadius = options?.emailStyles?.contentBorderRadius ?? 8;
+  const contentPadding = options?.emailStyles?.contentPadding ?? 40;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -272,14 +286,14 @@ export function renderEmailHtml(
     }
   </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f5f5f5; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+<body style="margin: 0; padding: 0; background-color: ${bodyBg}; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
   ${preheader}
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f5f5f5;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: ${bodyBg};">
     <tr>
       <td align="center" class="email-container" style="padding: 40px 16px;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 8px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%; background-color: ${contentBg}; border-radius: ${contentRadius}px;">
           <tr>
-            <td class="email-content" style="padding: 40px 32px;">
+            <td class="email-content" style="padding: ${contentPadding}px ${Math.round(contentPadding * 0.8)}px;">
               ${body}
             </td>
           </tr>

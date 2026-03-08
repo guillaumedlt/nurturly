@@ -302,12 +302,20 @@ function ColumnControls({ editor }: { editor: Editor }) {
 }
 
 /* ─── Main editor ─── */
+interface EmailStyles {
+  bodyBgColor: string;
+  contentBgColor: string;
+  contentBorderRadius: number;
+  contentPadding: number;
+}
+
 interface EmailEditorProps {
   content: string; // JSON string
   onUpdate: (json: string) => void;
+  emailStyles?: EmailStyles;
 }
 
-export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
+export function EmailEditor({ content, onUpdate, emailStyles }: EmailEditorProps) {
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
 
@@ -699,8 +707,20 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
       </div>
 
       {/* ─── Editor area ─── */}
-      <div className="email-editor-content rounded-lg border border-border bg-white p-8 shadow-sm">
-        <div className="mx-auto max-w-[600px]">
+      <div
+        className="email-editor-content rounded-lg border border-border p-8 shadow-sm transition-colors"
+        style={{
+          backgroundColor: emailStyles?.bodyBgColor || "#f5f5f5",
+        }}
+      >
+        <div
+          className="mx-auto max-w-[600px] transition-all"
+          style={{
+            backgroundColor: emailStyles?.contentBgColor || "#ffffff",
+            borderRadius: `${emailStyles?.contentBorderRadius ?? 8}px`,
+            padding: `${emailStyles?.contentPadding ?? 40}px ${Math.round((emailStyles?.contentPadding ?? 40) * 0.8)}px`,
+          }}
+        >
           <EditorBubbleMenu editor={editor} />
           <EditorContent editor={editor} />
 
