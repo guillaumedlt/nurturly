@@ -26,6 +26,13 @@ import {
   X,
   Target,
   Globe,
+  CircleAlert,
+  Undo2,
+  Redo2,
+  Copy,
+  FileText,
+  Users,
+  Activity,
 } from "lucide-react";
 import type {
   WorkflowDefinition,
@@ -44,8 +51,64 @@ import type {
   WorkflowNodeData,
   GoalCondition,
   SendTimeWindow,
+  NodeValidationError,
+  WorkflowTemplate,
 } from "@/lib/sequences/types";
-import { NODE_META } from "@/lib/sequences/types";
+import { NODE_META, validateWorkflow, WORKFLOW_TEMPLATES } from "@/lib/sequences/types";
+
+/* ─── Undo/Redo History ─── */
+const MAX_HISTORY = 50;
+
+function useUndoRedo(initial: WorkflowDefinition, onChange: (w: WorkflowDefinition) => void) {
+  const [history, setHistory] = useState<WorkflowDefinition[]>([initial]);
+  const [index, setIndex] = useState(0);
+  const skipNextRef = useRef(false);
+
+  const push = useCallback((w: WorkflowDefinition) => {
+    if (skipNextRef.current) {
+      skipNextRef.current = false;
+      onChange(w);
+      return;
+    }
+    setHistory((prev) => {
+      const newHistory = prev.slice(0, index + 1);
+      newHistory.push(w);
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      return newHistory;
+    });
+    setIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
+    onChange(w);
+  }, [index, onChange]);
+
+  const undo = useCallback(() => {
+    if (index <= 0) return;
+    const newIndex = index - 1;
+    setIndex(newIndex);
+    skipNextRef.current = true;
+    onChange(history[newIndex]);
+  }, [index, history, onChange]);
+
+  const redo = useCallback(() => {
+    if (index >= history.length - 1) return;
+    const newIndex = index + 1;
+    setIndex(newIndex);
+    skipNextRef.current = true;
+    onChange(history[newIndex]);
+  }, [index, history, onChange]);
+
+  const canUndo = index > 0;
+  const canRedo = index < history.length - 1;
+
+  // Sync when external changes come in (e.g. initial load)
+  useEffect(() => {
+    if (history.length === 1 && JSON.stringify(history[0]) !== JSON.stringify(initial)) {
+      setHistory([initial]);
+      setIndex(0);
+    }
+  }, [initial]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { push, undo, redo, canUndo, canRedo };
+}
 
 /* ─── Constants ─── */
 const NODE_WIDTH = 260;
@@ -1289,12 +1352,14 @@ function SequenceSettingsPanel({
 
 /* ─── Workflow Node Component ─── */
 function WorkflowNodeCard({
-  node, selected, onSelect, onDragStart,
+  node, selected, onSelect, onDragStart, error, onDuplicate,
 }: {
   node: WorkflowNode;
   selected: boolean;
   onSelect: () => void;
   onDragStart: (e: React.MouseEvent) => void;
+  error?: string;
+  onDuplicate?: () => void;
 }) {
   const meta = NODE_META[node.type];
   const Icon = NODE_ICONS[node.type];
@@ -1315,19 +1380,50 @@ function WorkflowNodeCard({
       <div
         onClick={onSelect}
         className={`group relative flex cursor-pointer items-center gap-3 rounded-xl border-2 bg-background px-4 transition-all ${
-          selected
-            ? "border-foreground shadow-lg"
-            : "border-border hover:border-muted-foreground/50 hover:shadow-md"
+          error
+            ? "border-red-400 shadow-red-100"
+            : selected
+              ? "border-foreground shadow-lg"
+              : "border-border hover:border-muted-foreground/50 hover:shadow-md"
         }`}
         style={{ height }}
       >
-        {/* Drag handle */}
-        {node.type !== "trigger" && (
+        {/* Drag handle + Duplicate */}
+        {node.type !== "trigger" && node.type !== "end" && (
+          <div className="absolute -left-7 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 items-center">
+            <div
+              onMouseDown={onDragStart}
+              className="flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground active:cursor-grabbing"
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </div>
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+                className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground hover:!text-foreground"
+                title="Duplicate"
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        )}
+        {node.type !== "trigger" && node.type !== "end" && !onDuplicate && (
           <div
             onMouseDown={onDragStart}
             className="absolute -left-7 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground active:cursor-grabbing"
           >
             <GripVertical className="h-3.5 w-3.5" />
+          </div>
+        )}
+
+        {/* Error indicator */}
+        {error && (
+          <div className="absolute -top-2 -right-2 z-10" title={error}>
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm">
+              <CircleAlert className="h-3 w-3" />
+            </div>
           </div>
         )}
 
@@ -1342,7 +1438,7 @@ function WorkflowNodeCard({
         {/* Text */}
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium text-foreground">{meta.label}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
+          <p className={`truncate text-[11px] ${error ? "text-red-500" : "text-muted-foreground"}`}>{error || subtitle}</p>
         </div>
 
         {/* Branch labels */}
@@ -1384,6 +1480,7 @@ function WorkflowNodeCard({
 /* ─── Floating Canvas Toolbar ─── */
 function CanvasToolbar({
   onOrganize, onFitView, zoom, onZoomIn, onZoomOut, onSettings,
+  onUndo, onRedo, canUndo, canRedo, onTemplates, errorCount,
 }: {
   onOrganize: () => void;
   onFitView: () => void;
@@ -1391,9 +1488,36 @@ function CanvasToolbar({
   onZoomIn: () => void;
   onZoomOut: () => void;
   onSettings: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  onTemplates: () => void;
+  errorCount: number;
 }) {
   return (
     <div className="absolute bottom-4 left-4 z-30 flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-sm">
+      {/* Undo/Redo */}
+      <button
+        type="button"
+        onClick={onUndo}
+        disabled={!canUndo}
+        title="Undo (Cmd+Z)"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <Undo2 className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={onRedo}
+        disabled={!canRedo}
+        title="Redo (Cmd+Shift+Z)"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <Redo2 className="h-3.5 w-3.5" />
+      </button>
+      <div className="mx-0.5 h-4 w-px bg-border" />
+
       <button
         type="button"
         onClick={onOrganize}
@@ -1435,6 +1559,16 @@ function CanvasToolbar({
       <div className="mx-0.5 h-4 w-px bg-border" />
       <button
         type="button"
+        onClick={onTemplates}
+        title="Workflow templates"
+        className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <FileText className="h-3.5 w-3.5" />
+        Templates
+      </button>
+      <div className="mx-0.5 h-4 w-px bg-border" />
+      <button
+        type="button"
         onClick={onSettings}
         title="Sequence settings"
         className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -1442,6 +1576,105 @@ function CanvasToolbar({
         <Settings2 className="h-3.5 w-3.5" />
         Settings
       </button>
+      {errorCount > 0 && (
+        <>
+          <div className="mx-0.5 h-4 w-px bg-border" />
+          <div className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-red-500">
+            <CircleAlert className="h-3.5 w-3.5" />
+            {errorCount} {errorCount === 1 ? "issue" : "issues"}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Template Picker Panel ─── */
+function TemplatePicker({
+  onSelect, onClose,
+}: {
+  onSelect: (template: WorkflowTemplate) => void;
+  onClose: () => void;
+}) {
+  const categories = [
+    { id: "welcome", label: "Welcome", icon: Mail },
+    { id: "nurture", label: "Nurture", icon: Activity },
+    { id: "reengagement", label: "Re-engagement", icon: Undo2 },
+    { id: "onboarding", label: "Onboarding", icon: Users },
+    { id: "sales", label: "Sales", icon: Target },
+  ];
+
+  return (
+    <div className="flex h-full flex-col border-l border-border bg-background">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
+            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+          <span className="text-[13px] font-medium text-foreground">Templates</span>
+        </div>
+        <button type="button" onClick={onClose} className="text-[12px] text-muted-foreground hover:text-foreground">
+          Close
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          Start with a pre-built workflow. This will replace your current workflow.
+        </p>
+
+        {categories.map((cat) => {
+          const templates = WORKFLOW_TEMPLATES.filter((t) => t.category === cat.id);
+          if (templates.length === 0) return null;
+          const CatIcon = cat.icon;
+          return (
+            <div key={cat.id} className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <CatIcon className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{cat.label}</span>
+              </div>
+              {templates.map((tmpl) => (
+                <button
+                  key={tmpl.id}
+                  type="button"
+                  onClick={() => onSelect(tmpl)}
+                  className="flex w-full flex-col gap-0.5 rounded-lg border border-border p-3 text-left transition-all hover:border-foreground/30 hover:shadow-sm"
+                >
+                  <span className="text-[13px] font-medium text-foreground">{tmpl.name}</span>
+                  <span className="text-[11px] text-muted-foreground">{tmpl.description}</span>
+                  <span className="mt-1 text-[10px] text-muted-foreground/60">{tmpl.workflow.nodes.length} nodes</span>
+                </button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Stats Bar ─── */
+function StatsBar({ nodeCount, emailCount, branchCount }: {
+  nodeCount: number;
+  emailCount: number;
+  branchCount: number;
+}) {
+  return (
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 rounded-lg border border-border bg-background/95 backdrop-blur-sm px-4 py-1.5 shadow-sm">
+      <div className="flex items-center gap-1.5">
+        <Activity className="h-3 w-3 text-muted-foreground" />
+        <span className="text-[11px] text-muted-foreground">{nodeCount} steps</span>
+      </div>
+      <div className="h-3 w-px bg-border" />
+      <div className="flex items-center gap-1.5">
+        <Mail className="h-3 w-3 text-blue-500" />
+        <span className="text-[11px] text-muted-foreground">{emailCount} emails</span>
+      </div>
+      <div className="h-3 w-px bg-border" />
+      <div className="flex items-center gap-1.5">
+        <GitBranch className="h-3 w-3 text-purple-500" />
+        <span className="text-[11px] text-muted-foreground">{branchCount} branches</span>
+      </div>
     </div>
   );
 }
@@ -1452,17 +1685,37 @@ interface WorkflowBuilderProps {
   onChange: (workflow: WorkflowDefinition) => void;
   emails: { id: string; name: string }[];
   lists: { id: string; name: string }[];
+  stats?: { enrolled: number; active: number; completed: number };
 }
 
 export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowBuilderProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [zoom, setZoom] = useState(1);
   const canvasRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
   const initializedRef = useRef(false);
 
   const selectedNode = workflow.nodes.find((n) => n.id === selectedNodeId) ?? null;
+
+  // ─── Undo/Redo ───
+  const { push: pushHistory, undo, redo, canUndo, canRedo } = useUndoRedo(workflow, onChange);
+
+  // ─── Validation ───
+  const validationErrors = useMemo(() => validateWorkflow(workflow), [workflow]);
+  const errorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const err of validationErrors) map[err.nodeId] = err.message;
+    return map;
+  }, [validationErrors]);
+
+  // ─── Stats ───
+  const nodeCount = workflow.nodes.filter((n) => n.type !== "trigger" && n.type !== "end").length;
+  const emailCount = workflow.nodes.filter((n) => n.type === "email").length;
+  const branchCount = workflow.nodes.filter((n) =>
+    n.type === "condition" || n.type === "ab_split" || n.type === "wait_for_event"
+  ).length;
 
   const emailNodes = workflow.nodes
     .filter((n) => n.type === "email")
@@ -1516,7 +1769,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
   // ─── Organize handler ───
   const handleOrganize = useCallback(() => {
     const organized = autoLayoutWorkflow(workflow);
-    onChange(organized);
+    pushHistory(organized);
 
     // Re-center after organize
     requestAnimationFrame(() => {
@@ -1537,7 +1790,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       container.scrollLeft = centerX - container.clientWidth / 2;
       container.scrollTop = 0;
     });
-  }, [workflow, onChange, zoom]);
+  }, [workflow, pushHistory, zoom]);
 
   // ─── Fit view ───
   const handleFitView = useCallback(() => {
@@ -1586,6 +1839,29 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
     container.addEventListener("wheel", handler, { passive: false });
     return () => container.removeEventListener("wheel", handler);
   }, []);
+
+  // ─── Undo/Redo keyboard shortcuts ───
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      }
+      // Delete key to remove selected node
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedNodeId) {
+        const target = e.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+        e.preventDefault();
+        deleteNode(selectedNodeId);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [undo, redo, selectedNodeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Node dragging ───
   const handleNodeDragStart = useCallback(
@@ -1734,10 +2010,10 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
 
       const newWorkflow = { nodes: [...updatedNodes, newNode], edges: newEdges };
       // Auto-organize after adding
-      onChange(autoLayoutWorkflow(newWorkflow));
+      pushHistory(autoLayoutWorkflow(newWorkflow));
       setSelectedNodeId(newId);
     },
-    [workflow, onChange]
+    [workflow, pushHistory]
   );
 
   // ─── Delete node ───
@@ -1776,22 +2052,74 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         nodes: workflow.nodes.filter((n) => !nodesToRemove.includes(n.id)),
         edges: newEdges,
       };
-      onChange(autoLayoutWorkflow(result));
+      pushHistory(autoLayoutWorkflow(result));
       setSelectedNodeId(null);
     },
-    [workflow, onChange]
+    [workflow, pushHistory]
+  );
+
+  // ─── Duplicate node ───
+  const duplicateNode = useCallback(
+    (nodeId: string) => {
+      const node = workflow.nodes.find((n) => n.id === nodeId);
+      if (!node || node.type === "trigger" || node.type === "end") return;
+
+      // Find the edge going OUT of this node (first one)
+      const outEdge = workflow.edges.find((e) => e.source === nodeId);
+      if (!outEdge) return;
+
+      const newId = genId(node.type);
+      const newNode: WorkflowNode = {
+        id: newId,
+        type: node.type,
+        position: { x: node.position.x, y: node.position.y + NODE_HEIGHT + V_GAP },
+        data: { ...node.data },
+      };
+
+      // Insert between this node and its target
+      const newEdges = workflow.edges
+        .filter((e) => e.id !== outEdge.id)
+        .concat([
+          { id: genId("e"), source: nodeId, target: newId, sourceHandle: outEdge.sourceHandle },
+          { id: genId("e"), source: newId, target: outEdge.target },
+        ]);
+
+      const newWorkflow = { ...workflow, nodes: [...workflow.nodes, newNode], edges: newEdges };
+      pushHistory(autoLayoutWorkflow(newWorkflow));
+      setSelectedNodeId(newId);
+    },
+    [workflow, pushHistory]
   );
 
   // ─── Update node data ───
   const updateNodeData = useCallback(
     (data: WorkflowNodeData) => {
       if (!selectedNodeId) return;
-      onChange({
+      pushHistory({
         ...workflow,
         nodes: workflow.nodes.map((n) => n.id === selectedNodeId ? { ...n, data } : n),
       });
     },
-    [workflow, onChange, selectedNodeId]
+    [workflow, pushHistory, selectedNodeId]
+  );
+
+  // ─── Apply template ───
+  const applyTemplate = useCallback(
+    (template: WorkflowTemplate) => {
+      pushHistory(autoLayoutWorkflow(template.workflow));
+      setShowTemplates(false);
+      setSelectedNodeId(null);
+
+      // Re-center
+      requestAnimationFrame(() => {
+        if (!canvasRef.current) return;
+        const trigger = template.workflow.nodes.find((n) => n.type === "trigger");
+        if (!trigger) return;
+        canvasRef.current.scrollLeft = 0;
+        canvasRef.current.scrollTop = 0;
+      });
+    },
+    [pushHistory]
   );
 
   // ─── Compute edge positions (with offset) ───
@@ -1887,12 +2215,19 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
                 key={node.id}
                 node={{ ...node, position: { x: node.position.x + offsetX, y: node.position.y + offsetY } }}
                 selected={selectedNodeId === node.id}
-                onSelect={() => setSelectedNodeId(node.id)}
+                onSelect={() => { setSelectedNodeId(node.id); setShowSettings(false); setShowTemplates(false); }}
                 onDragStart={(e) => handleNodeDragStart(node.id, e)}
+                error={errorMap[node.id]}
+                onDuplicate={node.type !== "trigger" && node.type !== "end" ? () => duplicateNode(node.id) : undefined}
               />
             ))}
           </div>
         </div>
+
+        {/* Stats bar */}
+        {nodeCount > 0 && (
+          <StatsBar nodeCount={nodeCount} emailCount={emailCount} branchCount={branchCount} />
+        )}
 
         {/* Canvas toolbar */}
         <CanvasToolbar
@@ -1901,12 +2236,18 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
           zoom={zoom}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
-          onSettings={() => { setShowSettings(!showSettings); setSelectedNodeId(null); }}
+          onSettings={() => { setShowSettings(!showSettings); setSelectedNodeId(null); setShowTemplates(false); }}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onTemplates={() => { setShowTemplates(!showTemplates); setSelectedNodeId(null); setShowSettings(false); }}
+          errorCount={validationErrors.length}
         />
       </div>
 
       {/* Config panel */}
-      {selectedNode && !showSettings && (
+      {selectedNode && !showSettings && !showTemplates && (
         <div className="w-[320px] shrink-0">
           <NodeConfigPanel
             node={selectedNode}
@@ -1927,9 +2268,19 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
           <SequenceSettingsPanel
             goals={workflow.goals || []}
             sendTimeWindow={workflow.sendTimeWindow || { enabled: false, startHour: 9, endHour: 17, timezone: "UTC", skipWeekends: false }}
-            onUpdateGoals={(goals) => onChange({ ...workflow, goals })}
-            onUpdateSendTime={(sendTimeWindow) => onChange({ ...workflow, sendTimeWindow })}
+            onUpdateGoals={(goals) => pushHistory({ ...workflow, goals })}
+            onUpdateSendTime={(sendTimeWindow) => pushHistory({ ...workflow, sendTimeWindow })}
             onClose={() => setShowSettings(false)}
+          />
+        </div>
+      )}
+
+      {/* Templates panel */}
+      {showTemplates && (
+        <div className="w-[320px] shrink-0">
+          <TemplatePicker
+            onSelect={applyTemplate}
+            onClose={() => setShowTemplates(false)}
           />
         </div>
       )}
