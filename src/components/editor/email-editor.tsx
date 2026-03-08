@@ -374,9 +374,31 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
       FontSize,
       UnderlineExt,
       Placeholder.configure({
-        placeholder: ({ node }) => {
+        placeholder: ({ node, pos, editor: ed }) => {
           if (node.type.name === "heading") return "Heading";
-          return 'Type "/" for blocks, "{" for variables...';
+          // Check if inside a columnCell — shorter placeholder
+          if (pos !== undefined && ed) {
+            try {
+              const $pos = ed.state.doc.resolve(pos);
+              for (let d = $pos.depth; d >= 1; d--) {
+                if ($pos.node(d).type.name === "columnCell") return "Type here...";
+              }
+            } catch {
+              // ignore
+            }
+          }
+          // Check if inside a sectionBlock
+          if (pos !== undefined && ed) {
+            try {
+              const $pos = ed.state.doc.resolve(pos);
+              for (let d = $pos.depth; d >= 1; d--) {
+                if ($pos.node(d).type.name === "sectionBlock") return "Type here...";
+              }
+            } catch {
+              // ignore
+            }
+          }
+          return 'Type "/" for commands...';
         },
         includeChildren: true,
       }),

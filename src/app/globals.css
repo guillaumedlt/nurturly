@@ -195,6 +195,10 @@
   pointer-events: none;
   height: 0;
   font-style: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .tiptap span[data-node-view-wrapper] {
