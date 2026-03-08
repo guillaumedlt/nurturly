@@ -88,24 +88,65 @@ function ToolbarBtn({
   );
 }
 
+/* ─── Helper: find nearest block drop boundary ─── */
+function findNearestBlockBoundary(
+  editor: Editor,
+  clientY: number,
+  excludeFrom?: number,
+  excludeSize?: number
+): { pos: number; top: number } | null {
+  const doc = editor.state.doc;
+  let bestPos = -1;
+  let bestDist = Infinity;
+  let bestTop = 0;
+
+  doc.forEach((node, offset) => {
+    const positions = [offset, offset + node.nodeSize];
+    for (const pos of positions) {
+      // Skip boundaries of the dragged block itself
+      if (excludeFrom !== undefined && excludeSize !== undefined) {
+        if (pos === excludeFrom || pos === excludeFrom + excludeSize) continue;
+      }
+      try {
+        const coords = editor.view.coordsAtPos(pos);
+        const dist = Math.abs(coords.top - clientY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestPos = pos;
+          bestTop = coords.top;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  });
+
+  return bestPos >= 0 ? { pos: bestPos, top: bestTop } : null;
+}
+
 /* ─── Floating block actions (drag / duplicate / delete) ─── */
-function FloatingBlockActions({ editor }: { editor: Editor }) {
+function FloatingBlockActions({ editor, editorContentRef }: { editor: Editor; editorContentRef: React.RefObject<HTMLDivElement | null> }) {
   const [info, setInfo] = useState<{
     visible: boolean;
     top: number;
     left: number;
-    height: number;
+    width: number;
     from: number;
     size: number;
-  }>({ visible: false, top: 0, left: 0, height: 0, from: 0, size: 0 });
+  }>({ visible: false, top: 0, left: 0, width: 0, from: 0, size: 0 });
 
-  const [dragging, setDragging] = useState(false);
-  const [dropIndicator, setDropIndicator] = useState<{ top: number; visible: boolean }>({ top: 0, visible: false });
-  const dragFromRef = useRef<{ from: number; size: number } | null>(null);
+  const draggingRef = useRef(false);
+  const dragSourceRef = useRef<{ from: number; size: number } | null>(null);
+  const dragGhostRef = useRef<HTMLDivElement | null>(null);
+  const [dropLine, setDropLine] = useState<{ top: number; left: number; width: number; visible: boolean }>({
+    top: 0, left: 0, width: 0, visible: false,
+  });
+  const dropPosRef = useRef<number>(-1);
 
+  // Track block info from editor selection
   useEffect(() => {
     const update = () => {
-      if (dragging) return; // Don't update while dragging
+      if (draggingRef.current) return;
       const { selection } = editor.state;
       let blockFrom: number | null = null;
       let blockSize = 0;
@@ -129,7 +170,7 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
             visible: true,
             top: rect.top,
             left: rect.left - 34,
-            height: rect.height,
+            width: rect.width,
             from: blockFrom,
             size: blockSize,
           });
@@ -145,117 +186,120 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
       editor.off("selectionUpdate", update);
       editor.off("transaction", update);
     };
-  }, [editor, dragging]);
+  }, [editor]);
 
-  // Drag and drop handlers
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
+  // Mouse-based drag handler
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
       const node = editor.state.doc.nodeAt(info.from);
       if (!node) return;
 
-      dragFromRef.current = { from: info.from, size: info.size };
-      setDragging(true);
-
-      // Set drag image to the block element
       const dom = editor.view.nodeDOM(info.from);
-      if (dom instanceof HTMLElement) {
-        e.dataTransfer.setDragImage(dom, 0, 0);
-      }
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", "block-drag");
-    },
-    [editor, info.from, info.size]
-  );
+      if (!(dom instanceof HTMLElement)) return;
 
-  const handleDrag = useCallback(
-    (e: React.DragEvent) => {
-      if (!e.clientY) return;
-      // Find the nearest block boundary to show the drop indicator
-      const doc = editor.state.doc;
-      let bestPos = -1;
-      let bestDist = Infinity;
-      let bestTop = 0;
+      dragSourceRef.current = { from: info.from, size: info.size };
+      draggingRef.current = true;
 
-      doc.forEach((node, offset) => {
-        // Check position before and after each top-level block
-        const positions = [offset, offset + node.nodeSize];
-        for (const pos of positions) {
-          try {
-            const coords = editor.view.coordsAtPos(pos);
-            const dist = Math.abs(coords.top - e.clientY);
-            if (dist < bestDist) {
-              bestDist = dist;
-              bestPos = pos;
-              bestTop = coords.top;
-            }
-          } catch {
-            // ignore
-          }
+      // Create ghost element (semi-transparent clone)
+      const rect = dom.getBoundingClientRect();
+      const ghost = document.createElement("div");
+      ghost.style.cssText = `
+        position: fixed; z-index: 9999; pointer-events: none;
+        width: ${rect.width}px; opacity: 0.7;
+        border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        overflow: hidden; transition: transform 0.05s ease;
+      `;
+      ghost.appendChild(dom.cloneNode(true));
+      document.body.appendChild(ghost);
+      dragGhostRef.current = ghost;
+
+      // Dim original
+      dom.style.opacity = "0.25";
+      dom.style.transition = "opacity 0.15s";
+
+      const offsetY = e.clientY - rect.top;
+
+      const onMouseMove = (ev: MouseEvent) => {
+        // Move ghost
+        if (dragGhostRef.current) {
+          dragGhostRef.current.style.top = `${ev.clientY - offsetY}px`;
+          dragGhostRef.current.style.left = `${rect.left}px`;
         }
-      });
 
-      if (bestPos >= 0) {
-        setDropIndicator({ top: bestTop, visible: true });
-      }
-    },
-    [editor]
-  );
-
-  const handleDragEnd = useCallback(
-    (e: React.DragEvent) => {
-      setDragging(false);
-      setDropIndicator({ top: 0, visible: false });
-
-      if (!dragFromRef.current) return;
-      const { from, size } = dragFromRef.current;
-      dragFromRef.current = null;
-
-      const node = editor.state.doc.nodeAt(from);
-      if (!node) return;
-
-      // Find the best drop position
-      const doc = editor.state.doc;
-      let bestPos = -1;
-      let bestDist = Infinity;
-
-      doc.forEach((child, offset) => {
-        const positions = [offset, offset + child.nodeSize];
-        for (const pos of positions) {
-          try {
-            const coords = editor.view.coordsAtPos(pos);
-            const dist = Math.abs(coords.top - e.clientY);
-            if (dist < bestDist) {
-              bestDist = dist;
-              bestPos = pos;
-            }
-          } catch {
-            // ignore
-          }
+        // Find drop target
+        const boundary = findNearestBlockBoundary(
+          editor, ev.clientY,
+          dragSourceRef.current?.from, dragSourceRef.current?.size
+        );
+        if (boundary) {
+          dropPosRef.current = boundary.pos;
+          // Get editor content bounds for constraining the line
+          const contentEl = editorContentRef?.current?.querySelector(".mx-auto");
+          const contentRect = contentEl?.getBoundingClientRect();
+          setDropLine({
+            top: boundary.top,
+            left: contentRect ? contentRect.left : rect.left,
+            width: contentRect ? contentRect.width : rect.width,
+            visible: true,
+          });
         }
-      });
+      };
 
-      if (bestPos < 0 || bestPos === from || bestPos === from + size) return;
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
 
-      // Move the block: delete from old position, insert at new position
-      const nodeJson = node.toJSON();
-      const tr = editor.state.tr;
+        // Remove ghost
+        if (dragGhostRef.current) {
+          dragGhostRef.current.remove();
+          dragGhostRef.current = null;
+        }
 
-      if (bestPos > from) {
-        // Moving down: insert first, then delete
-        tr.insert(bestPos, editor.state.schema.nodeFromJSON(nodeJson));
-        tr.delete(from, from + size);
-      } else {
-        // Moving up: delete first, then insert
-        tr.delete(from, from + size);
-        tr.insert(bestPos, editor.state.schema.nodeFromJSON(nodeJson));
-      }
+        // Restore original opacity
+        const origDom = editor.view.nodeDOM(dragSourceRef.current?.from ?? -1);
+        if (origDom instanceof HTMLElement) {
+          origDom.style.opacity = "";
+          origDom.style.transition = "";
+        }
 
-      editor.view.dispatch(tr);
+        setDropLine((prev) => ({ ...prev, visible: false }));
+        draggingRef.current = false;
+
+        // Perform the move
+        const source = dragSourceRef.current;
+        const targetPos = dropPosRef.current;
+        dragSourceRef.current = null;
+        dropPosRef.current = -1;
+
+        if (!source || targetPos < 0) return;
+        const { from, size } = source;
+        if (targetPos === from || targetPos === from + size) return;
+
+        const srcNode = editor.state.doc.nodeAt(from);
+        if (!srcNode) return;
+
+        const tr = editor.state.tr;
+        const nodeJson = srcNode.toJSON();
+
+        if (targetPos > from) {
+          tr.insert(targetPos, editor.state.schema.nodeFromJSON(nodeJson));
+          tr.delete(from, from + size);
+        } else {
+          tr.delete(from, from + size);
+          tr.insert(targetPos, editor.state.schema.nodeFromJSON(nodeJson));
+        }
+
+        editor.view.dispatch(tr);
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
     },
-    [editor]
+    [editor, info.from, info.size, editorContentRef]
   );
 
-  if (!info.visible && !dragging) return null;
+  if (!info.visible) return null;
 
   const deleteBlock = () => {
     editor
@@ -278,52 +322,44 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
 
   return (
     <>
-      {info.visible && (
+      <div
+        className="fixed z-30 flex flex-col gap-0.5 animate-in fade-in duration-150"
+        style={{ top: info.top, left: Math.max(info.left, 4) }}
+      >
         <div
-          className="fixed z-30 flex flex-col gap-0.5 animate-in fade-in duration-150"
-          style={{ top: info.top, left: Math.max(info.left, 4) }}
+          onMouseDown={handleMouseDown}
+          title="Drag to reorder"
+          className="flex h-6 w-6 cursor-grab items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground active:cursor-grabbing"
         >
-          <div
-            draggable
-            onDragStart={handleDragStart}
-            onDrag={handleDrag}
-            onDragEnd={handleDragEnd}
-            title="Drag to reorder"
-            className="flex h-6 w-6 cursor-grab items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground active:cursor-grabbing"
-          >
-            <GripVertical className="h-3 w-3" />
-          </div>
-          <button
-            type="button"
-            onClick={duplicateBlock}
-            title="Duplicate block"
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <Copy className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            onClick={deleteBlock}
-            title="Delete block"
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
+          <GripVertical className="h-3 w-3" />
         </div>
-      )}
+        <button
+          type="button"
+          onClick={duplicateBlock}
+          title="Duplicate block"
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Copy className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={deleteBlock}
+          title="Delete block"
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
 
-      {/* Drop indicator line */}
-      {dropIndicator.visible && (
+      {/* Drop indicator line — constrained to editor width */}
+      {dropLine.visible && (
         <div
           className="fixed z-50 pointer-events-none"
-          style={{
-            top: dropIndicator.top - 1,
-            left: info.left + 34,
-            width: 600,
-          }}
+          style={{ top: dropLine.top - 1, left: dropLine.left, width: dropLine.width }}
         >
           <div className="h-0.5 rounded-full bg-ring" />
-          <div className="absolute -left-1 -top-[3px] h-2 w-2 rounded-full bg-ring" />
+          <div className="absolute -left-1.5 -top-[3px] h-2 w-2 rounded-full bg-ring" />
+          <div className="absolute -right-1.5 -top-[3px] h-2 w-2 rounded-full bg-ring" />
         </div>
       )}
     </>
@@ -770,6 +806,8 @@ export function EmailEditor({ content, onUpdate, emailStyles }: EmailEditorProps
     [editor]
   );
 
+  const editorContentRef = useRef<HTMLDivElement | null>(null);
+
   const addBlockAtEnd = useCallback(() => {
     if (!editor) return;
     editor.chain().focus("end").insertContent("/").run();
@@ -853,6 +891,7 @@ export function EmailEditor({ content, onUpdate, emailStyles }: EmailEditorProps
 
       {/* ─── Editor area ─── */}
       <div
+        ref={editorContentRef}
         className="email-editor-content rounded-lg border border-border p-8 shadow-sm transition-colors"
         style={{
           backgroundColor: emailStyles?.bodyBgColor || "#f5f5f5",
@@ -882,7 +921,7 @@ export function EmailEditor({ content, onUpdate, emailStyles }: EmailEditorProps
       </div>
 
       {/* ─── Floating block actions ─── */}
-      <FloatingBlockActions editor={editor} />
+      <FloatingBlockActions editor={editor} editorContentRef={editorContentRef} />
 
       {/* ─── Column controls (when cursor is inside a columnsBlock) ─── */}
       <ColumnControls editor={editor} />
