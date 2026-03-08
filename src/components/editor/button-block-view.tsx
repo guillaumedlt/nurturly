@@ -1,17 +1,13 @@
 "use client";
 
-import { NodeViewWrapper } from "@tiptap/react";
+import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { useState } from "react";
 
 export function ButtonBlockView({
   node,
   updateAttributes,
   selected,
-}: {
-  node: { attrs: { text: string; href: string; align: string } };
-  updateAttributes: (attrs: Record<string, unknown>) => void;
-  selected: boolean;
-}) {
+}: ReactNodeViewProps) {
   const [editing, setEditing] = useState(false);
   const { text, href, align } = node.attrs;
 

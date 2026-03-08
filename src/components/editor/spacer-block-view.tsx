@@ -1,17 +1,13 @@
 "use client";
 
-import { NodeViewWrapper } from "@tiptap/react";
+import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { useState, useCallback } from "react";
 
 export function SpacerBlockView({
   node,
   updateAttributes,
   selected,
-}: {
-  node: { attrs: { height: number } };
-  updateAttributes: (attrs: Record<string, unknown>) => void;
-  selected: boolean;
-}) {
+}: ReactNodeViewProps) {
   const { height } = node.attrs;
   const [dragging, setDragging] = useState(false);
 

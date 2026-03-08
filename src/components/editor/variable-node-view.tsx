@@ -1,8 +1,8 @@
 "use client";
 
-import { NodeViewWrapper } from "@tiptap/react";
+import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 
-export function VariableNodeView({ node }: { node: { attrs: { name: string } } }) {
+export function VariableNodeView({ node }: ReactNodeViewProps) {
   return (
     <NodeViewWrapper as="span" className="inline">
       <span
