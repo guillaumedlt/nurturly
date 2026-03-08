@@ -266,7 +266,7 @@ export default function EmailEditorPage() {
                       <span className="mb-2 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         Body background
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {BODY_BG_COLORS.map((c) => (
                           <button
                             key={c}
@@ -278,6 +278,22 @@ export default function EmailEditorPage() {
                             style={{ backgroundColor: c }}
                           />
                         ))}
+                        <div className="relative ml-1">
+                          <input
+                            type="color"
+                            value={emailStyles.bodyBgColor}
+                            onChange={(e) => setEmailStyles((s) => ({ ...s, bodyBgColor: e.target.value }))}
+                            className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0"
+                          />
+                          <div
+                            className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-bold text-muted-foreground transition-all hover:scale-110 ${
+                              !BODY_BG_COLORS.includes(emailStyles.bodyBgColor) ? "ring-2 ring-ring ring-offset-1" : "border-border"
+                            }`}
+                            style={{ backgroundColor: emailStyles.bodyBgColor }}
+                          >
+                            #
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -286,7 +302,7 @@ export default function EmailEditorPage() {
                       <span className="mb-2 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         Content background
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {CONTENT_BG_COLORS.map((c) => (
                           <button
                             key={c}
@@ -298,6 +314,22 @@ export default function EmailEditorPage() {
                             style={{ backgroundColor: c }}
                           />
                         ))}
+                        <div className="relative ml-1">
+                          <input
+                            type="color"
+                            value={emailStyles.contentBgColor}
+                            onChange={(e) => setEmailStyles((s) => ({ ...s, contentBgColor: e.target.value }))}
+                            className="absolute inset-0 h-7 w-7 cursor-pointer opacity-0"
+                          />
+                          <div
+                            className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-bold text-muted-foreground transition-all hover:scale-110 ${
+                              !CONTENT_BG_COLORS.includes(emailStyles.contentBgColor) ? "ring-2 ring-ring ring-offset-1" : "border-border"
+                            }`}
+                            style={{ backgroundColor: emailStyles.contentBgColor }}
+                          >
+                            #
+                          </div>
+                        </div>
                       </div>
                     </div>
 
