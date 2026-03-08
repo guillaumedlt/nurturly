@@ -2,9 +2,21 @@
 
 import { NodeViewWrapper, NodeViewContent, type ReactNodeViewProps } from "@tiptap/react";
 import { Columns2, Columns3, Columns4 } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 export function ColumnsBlockView({ node, updateAttributes, selected, editor }: ReactNodeViewProps) {
   const { columns, gap } = node.attrs;
+  const flexRef = useRef<HTMLDivElement>(null);
+
+  // Apply display:contents directly on the NodeViewContent DOM element
+  // This makes it invisible in layout so columnCells become flex children
+  useEffect(() => {
+    if (!flexRef.current) return;
+    const contentEl = flexRef.current.querySelector("[data-node-view-content]");
+    if (contentEl instanceof HTMLElement) {
+      contentEl.style.display = "contents";
+    }
+  });
 
   const changeColumns = (newCount: number) => {
     const currentCount = node.childCount;
@@ -26,7 +38,7 @@ export function ColumnsBlockView({ node, updateAttributes, selected, editor }: R
   return (
     <NodeViewWrapper data-drag-handle="" data-columns-block="">
       <div className={`group relative ${selected ? "ring-2 ring-ring/30 rounded-lg" : ""}`}>
-        {/* Inline column toggle — appears on hover */}
+        {/* Inline column toggle */}
         <div
           className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 rounded-full border border-border bg-background p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
           contentEditable={false}
@@ -50,12 +62,8 @@ export function ColumnsBlockView({ node, updateAttributes, selected, editor }: R
           })}
         </div>
 
-        {/*
-          Flex wrapper. NodeViewContent renders a wrapper div that we make
-          transparent with display:contents via CSS, so the columnCell
-          children become direct flex items of this div.
-        */}
-        <div className="nurturly-columns-row" style={{ display: "flex", gap: `${gap}px` }}>
+        {/* Flex container — JS applies display:contents on NodeViewContent's wrapper */}
+        <div ref={flexRef} style={{ display: "flex", gap: `${gap}px` }}>
           <NodeViewContent />
         </div>
       </div>

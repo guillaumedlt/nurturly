@@ -215,20 +215,8 @@
   border-radius: 4px;
 }
 
-/*
- * Columns layout fix:
- * NodeViewContent renders a wrapper div between the flex parent and the
- * columnCell children. display:contents makes it invisible in layout,
- * so columnCells become direct flex items.
- * We target EVERY possible child of the flex row that isn't a column-cell.
- */
-.nurturly-columns-row > * {
-  display: contents !important;
-}
-
-/* Column cells are the actual flex items */
-.nurturly-columns-row [data-column-cell] {
-  display: block !important;
+/* Column cells take equal space as flex items */
+.tiptap [data-column-cell] {
   flex: 1;
   min-width: 0;
 }
