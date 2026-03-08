@@ -229,14 +229,14 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
               </button>
 
               {showColorPicker && (
-                <div className="absolute top-full right-0 z-50 mt-1 w-44 rounded-lg border border-border bg-background p-2 shadow-lg">
+                <div className="absolute top-full right-0 z-50 mt-1 rounded-lg border border-border bg-background p-2 shadow-lg" style={{ width: 192 }}>
                   {/* Preset colors */}
-                  <div className="mb-2 grid grid-cols-5 gap-1">
+                  <div className="mb-2 grid grid-cols-5 gap-1.5 justify-items-center">
                     {/* Reset */}
                     <button
                       type="button"
                       onClick={() => { editor.chain().focus().unsetColor().run(); setShowColorPicker(false); }}
-                      className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background transition-all hover:scale-110"
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background transition-all hover:scale-110"
                       title="Reset color"
                     >
                       <div className="h-[1px] w-3 bg-destructive rotate-45" />
@@ -246,7 +246,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
                         key={color}
                         type="button"
                         onClick={() => { setColor(color); setShowColorPicker(false); }}
-                        className={`h-6 w-6 rounded-full border transition-all hover:scale-110 ${
+                        className={`h-7 w-7 rounded-full border transition-all hover:scale-110 ${
                           currentColor === color ? "ring-2 ring-ring ring-offset-1" : "border-border"
                         }`}
                         style={{ backgroundColor: color }}
@@ -286,7 +286,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
                         if (/^#[0-9a-fA-F]{6}$/.test(val)) setColor(val);
                       }}
                       placeholder="#000000"
-                      className="h-7 flex-1 rounded-md border border-input bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-ring"
+                      className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
