@@ -13,6 +13,30 @@ interface ContactsToolbarProps {
   onBulkDelete: () => void;
 }
 
+function FilterPill({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
+        active
+          ? "bg-foreground text-background"
+          : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function ContactsToolbar({
   params,
   onParamsChange,
@@ -32,9 +56,12 @@ export function ContactsToolbar({
     };
   }, [searchValue]);
 
+  const currentStatus = params.subscribed ?? "";
+  const currentSource = params.source ?? "";
+
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-1 items-center gap-2">
+      <div className="flex flex-1 flex-wrap items-center gap-2">
         <div className="relative max-w-[240px] flex-1">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -45,26 +72,46 @@ export function ContactsToolbar({
           />
         </div>
 
-        <select
-          value={params.subscribed ?? ""}
-          onChange={(e) => onParamsChange({ subscribed: (e.target.value || undefined) as ContactsListParams["subscribed"] })}
-          className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground outline-none"
-        >
-          <option value="">All status</option>
-          <option value="true">Subscribed</option>
-          <option value="false">Unsubscribed</option>
-        </select>
+        <div className="flex items-center gap-1">
+          <FilterPill
+            label="All"
+            active={currentStatus === ""}
+            onClick={() => onParamsChange({ subscribed: undefined })}
+          />
+          <FilterPill
+            label="Subscribed"
+            active={currentStatus === "true"}
+            onClick={() => onParamsChange({ subscribed: "true" as ContactsListParams["subscribed"] })}
+          />
+          <FilterPill
+            label="Unsubscribed"
+            active={currentStatus === "false"}
+            onClick={() => onParamsChange({ subscribed: "false" as ContactsListParams["subscribed"] })}
+          />
+        </div>
 
-        <select
-          value={params.source ?? ""}
-          onChange={(e) => onParamsChange({ source: (e.target.value || undefined) as ContactsListParams["source"] })}
-          className="hidden h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground outline-none sm:block"
-        >
-          <option value="">All sources</option>
-          <option value="manual">Manual</option>
-          <option value="import">Import</option>
-          <option value="api">API</option>
-        </select>
+        <div className="hidden items-center gap-1 sm:flex">
+          <FilterPill
+            label="All sources"
+            active={currentSource === ""}
+            onClick={() => onParamsChange({ source: undefined })}
+          />
+          <FilterPill
+            label="Manual"
+            active={currentSource === "manual"}
+            onClick={() => onParamsChange({ source: "manual" as ContactsListParams["source"] })}
+          />
+          <FilterPill
+            label="Import"
+            active={currentSource === "import"}
+            onClick={() => onParamsChange({ source: "import" as ContactsListParams["source"] })}
+          />
+          <FilterPill
+            label="API"
+            active={currentSource === "api"}
+            onClick={() => onParamsChange({ source: "api" as ContactsListParams["source"] })}
+          />
+        </div>
       </div>
 
       {selectedCount > 0 && (
