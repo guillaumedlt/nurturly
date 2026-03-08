@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { campaigns, lists } from "@/lib/db/schema";
+import { campaigns, lists, emails } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export async function GET() {
@@ -15,6 +15,8 @@ export async function GET() {
       id: campaigns.id,
       name: campaigns.name,
       status: campaigns.status,
+      emailId: campaigns.emailId,
+      emailName: emails.name,
       listId: campaigns.listId,
       listName: lists.name,
       totalRecipients: campaigns.totalRecipients,
@@ -26,6 +28,7 @@ export async function GET() {
     })
     .from(campaigns)
     .leftJoin(lists, eq(campaigns.listId, lists.id))
+    .leftJoin(emails, eq(campaigns.emailId, emails.id))
     .where(eq(campaigns.userId, session.user.id))
     .orderBy(desc(campaigns.updatedAt));
 
@@ -47,10 +50,6 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       name,
       status: "draft",
-      editorContent: JSON.stringify({
-        type: "doc",
-        content: [{ type: "paragraph" }],
-      }),
     })
     .returning();
 

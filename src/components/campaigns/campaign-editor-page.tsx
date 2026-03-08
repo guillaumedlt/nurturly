@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -8,20 +8,19 @@ import {
   Send,
   Loader2,
   Users,
-  Calendar,
+  Mail,
   BarChart3,
+  Eye,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-import { EmailEditor } from "@/components/editor/email-editor";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { renderEmailHtml } from "@/lib/editor/render-html";
 
 interface CampaignData {
   id: string;
   name: string;
+  emailId: string | null;
   subject: string | null;
-  editorContent: string | null;
-  htmlContent: string | null;
   status: "draft" | "scheduled" | "sending" | "sent" | "cancelled";
   listId: string | null;
   scheduledAt: string | null;
@@ -32,6 +31,13 @@ interface CampaignData {
   totalOpened: number;
   totalClicked: number;
   totalBounced: number;
+}
+
+interface EmailOption {
+  id: string;
+  name: string;
+  subject: string;
+  updatedAt: string;
 }
 
 interface ListOption {
@@ -47,6 +53,7 @@ interface CampaignEditorPageProps {
 export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
   const router = useRouter();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
+  const [emailsList, setEmailsList] = useState<EmailOption[]>([]);
   const [lists, setLists] = useState<ListOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,22 +62,23 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
 
   // Local state
   const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
+  const [emailId, setEmailId] = useState("");
   const [listId, setListId] = useState("");
-  const [editorContent, setEditorContent] = useState("");
   const [editingName, setEditingName] = useState(false);
 
-  const contentRef = useRef(editorContent);
-  contentRef.current = editorContent;
+  // Preview
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const isSent = campaign?.status === "sent" || campaign?.status === "cancelled";
 
-  // Load campaign + lists
+  // Load campaign + emails + lists
   useEffect(() => {
     async function load() {
       try {
-        const [campaignRes, listsRes] = await Promise.all([
+        const [campaignRes, emailsRes, listsRes] = await Promise.all([
           fetch(`/api/campaigns/${campaignId}`),
+          fetch("/api/emails"),
           fetch("/api/lists"),
         ]);
 
@@ -82,16 +90,17 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
         const campaignData: CampaignData = await campaignRes.json();
         setCampaign(campaignData);
         setName(campaignData.name);
-        setSubject(campaignData.subject || "");
+        setEmailId(campaignData.emailId || "");
         setListId(campaignData.listId || "");
-        setEditorContent(
-          campaignData.editorContent ||
-            JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
-        );
+
+        if (emailsRes.ok) {
+          const data = await emailsRes.json();
+          setEmailsList(data.emails || []);
+        }
 
         if (listsRes.ok) {
-          const listsData = await listsRes.json();
-          setLists(Array.isArray(listsData) ? listsData : listsData.lists || listsData);
+          const data = await listsRes.json();
+          setLists(Array.isArray(data) ? data : data.lists || data);
         }
       } catch {
         router.push("/campaigns");
@@ -102,26 +111,38 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
     load();
   }, [campaignId, router]);
 
+  // Load preview when email changes
+  useEffect(() => {
+    if (!emailId) {
+      setPreviewHtml(null);
+      return;
+    }
+    async function loadPreview() {
+      try {
+        const res = await fetch(`/api/emails/${emailId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPreviewHtml(data.htmlContent || null);
+        }
+      } catch {
+        setPreviewHtml(null);
+      }
+    }
+    loadPreview();
+  }, [emailId]);
+
   // Save
   const save = useCallback(async () => {
     if (!campaign || isSent) return;
     setSaving(true);
     try {
-      let htmlContent = "";
-      try {
-        const doc = JSON.parse(contentRef.current);
-        htmlContent = renderEmailHtml(doc, { subject });
-      } catch {}
-
       const res = await fetch(`/api/campaigns/${campaign.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          subject,
+          emailId: emailId || null,
           listId: listId || null,
-          editorContent: contentRef.current,
-          htmlContent,
         }),
       });
 
@@ -133,17 +154,16 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
     } finally {
       setSaving(false);
     }
-  }, [campaign, isSent, name, subject, listId]);
+  }, [campaign, isSent, name, emailId, listId]);
 
   // Send
   const sendCampaign = useCallback(async () => {
     if (!campaign) return;
 
-    // Save first
     await save();
 
-    if (!subject.trim()) {
-      alert("Please add a subject line before sending.");
+    if (!emailId) {
+      alert("Please select an email before sending.");
       return;
     }
     if (!listId) {
@@ -167,7 +187,7 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
     } finally {
       setSending(false);
     }
-  }, [campaign, save, subject, listId]);
+  }, [campaign, save, emailId, listId]);
 
   // Cmd+S
   useEffect(() => {
@@ -191,6 +211,7 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
 
   if (!campaign) return null;
 
+  const selectedEmail = emailsList.find((e) => e.id === emailId);
   const selectedList = lists.find((l) => l.id === listId);
 
   return (
@@ -258,7 +279,7 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
               <button
                 type="button"
                 onClick={sendCampaign}
-                disabled={sending}
+                disabled={sending || !emailId || !listId}
                 className="flex h-8 items-center gap-1.5 rounded-md bg-foreground px-4 text-[12px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {sending ? (
@@ -266,7 +287,7 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
                 ) : (
                   <Send className="h-3.5 w-3.5" />
                 )}
-                Send
+                Send campaign
               </button>
             </>
           )}
@@ -275,7 +296,7 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-auto bg-muted/30">
-        <div className="mx-auto max-w-[800px] px-4 py-6 sm:px-6">
+        <div className="mx-auto max-w-[640px] px-4 py-8 sm:px-6">
           {/* Stats banner for sent campaigns */}
           {campaign.status === "sent" && (
             <div className="mb-6 rounded-lg border border-border bg-background p-5">
@@ -320,88 +341,148 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
             </div>
           )}
 
-          {/* Subject & preheader */}
-          <div className="mb-5 space-y-2">
-            <SectionLabel label="Content" />
-            <div className="flex items-center gap-3">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground w-20 shrink-0">
-                Subject
-              </label>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Email subject line"
-                disabled={isSent}
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-[14px] outline-none transition-colors focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 disabled:opacity-60"
-              />
+          {/* Email selection */}
+          <div className="mb-4">
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              <Mail className="h-3.5 w-3.5" />
+              Email
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              {isSent ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-[13px] text-foreground">
+                    {selectedEmail?.name || "—"}
+                  </span>
+                  {selectedEmail && (
+                    <span className="text-[12px] text-muted-foreground">
+                      Subject: {selectedEmail.subject || "—"}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <select
+                    value={emailId}
+                    onChange={(e) => setEmailId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-[13px] outline-none transition-colors focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Select an email...</option>
+                    {emailsList.map((email) => (
+                      <option key={email.id} value={email.id}>
+                        {email.name} — {email.subject || "(no subject)"}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedEmail && (
+                    <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                      <span>Subject: <strong className="text-foreground">{selectedEmail.subject || "—"}</strong></span>
+                      <div className="flex-1" />
+                      <Link
+                        href={`/emails/${selectedEmail.id}`}
+                        target="_blank"
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Edit email
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  )}
+
+                  {emailsList.length === 0 && (
+                    <div className="text-center py-3">
+                      <p className="text-[13px] text-muted-foreground mb-2">No emails yet</p>
+                      <Link
+                        href="/emails"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+                      >
+                        <Mail className="h-3 w-3" />
+                        Create an email
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Editor */}
-          {!isSent ? (
-            <EmailEditor content={editorContent} onUpdate={setEditorContent} />
-          ) : (
-            <div className="rounded-lg border border-border bg-white p-8">
-              <div className="mx-auto max-w-[600px] text-[13px] text-muted-foreground">
-                <p>Email content was sent to {campaign.totalRecipients.toLocaleString()} recipients.</p>
+          {/* Audience selection */}
+          <div className="mb-4">
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              <Users className="h-3.5 w-3.5" />
+              Audience
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              {isSent ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-[13px] text-foreground">
+                    {selectedList?.name || "—"}
+                  </span>
+                  <span className="text-[12px] text-muted-foreground">
+                    {campaign.totalRecipients.toLocaleString()} recipients
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <select
+                    value={listId}
+                    onChange={(e) => setListId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-[13px] outline-none transition-colors focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Select a list...</option>
+                    {lists.map((list) => (
+                      <option key={list.id} value={list.id}>
+                        {list.name} ({list.contactCount} contacts)
+                      </option>
+                    ))}
+                  </select>
+                  {selectedList && (
+                    <p className="text-[12px] text-muted-foreground">
+                      {selectedList.contactCount.toLocaleString()} contacts will receive this campaign
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Email preview */}
+          {emailId && previewHtml && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  <Eye className="h-3.5 w-3.5" />
+                  Preview
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPreview ? "Hide" : "Show"}
+                </button>
               </div>
+              {showPreview && (
+                <div className="overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+                  <div className="flex items-center gap-1.5 border-b border-border bg-muted/30 px-3 py-2">
+                    <div className="h-2 w-2 rounded-full bg-border" />
+                    <div className="h-2 w-2 rounded-full bg-border" />
+                    <div className="h-2 w-2 rounded-full bg-border" />
+                    <span className="ml-2 text-[10px] text-muted-foreground/50">Preview</span>
+                  </div>
+                  <iframe
+                    srcDoc={previewHtml}
+                    title="Email preview"
+                    className="w-full border-none"
+                    style={{ height: 500, pointerEvents: "none" }}
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+              )}
             </div>
           )}
-
-          {/* Audience */}
-          <div className="mt-6 space-y-3">
-            <SectionLabel label="Audience" icon={<Users className="h-3.5 w-3.5" />} />
-            <div className="rounded-lg border border-border bg-background p-4">
-              <div className="flex items-center gap-3">
-                <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground w-20 shrink-0">
-                  List
-                </label>
-                {isSent ? (
-                  <span className="text-[13px] text-foreground">
-                    {selectedList?.name || "—"} ({campaign.totalRecipients.toLocaleString()} contacts)
-                  </span>
-                ) : (
-                  <div className="flex flex-1 items-center gap-3">
-                    <select
-                      value={listId}
-                      onChange={(e) => setListId(e.target.value)}
-                      className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-[13px] outline-none transition-colors focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="">Select a list...</option>
-                      {lists.map((list) => (
-                        <option key={list.id} value={list.id}>
-                          {list.name} ({list.contactCount} contacts)
-                        </option>
-                      ))}
-                    </select>
-                    {selectedList && (
-                      <span className="text-[12px] text-muted-foreground shrink-0">
-                        {selectedList.contactCount.toLocaleString()} contacts
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function SectionLabel({
-  label,
-  icon,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-      {icon}
-      {label}
     </div>
   );
 }

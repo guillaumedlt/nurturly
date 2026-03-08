@@ -42,6 +42,7 @@ export async function PATCH(
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (body.name !== undefined) updates.name = body.name;
   if (body.subject !== undefined) updates.subject = body.subject;
+  if (body.emailId !== undefined) updates.emailId = body.emailId || null;
   if (body.editorContent !== undefined) updates.editorContent = body.editorContent;
   if (body.htmlContent !== undefined) updates.htmlContent = body.htmlContent;
   if (body.listId !== undefined) updates.listId = body.listId || null;

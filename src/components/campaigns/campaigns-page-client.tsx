@@ -10,6 +10,7 @@ interface CampaignRow {
   id: string;
   name: string;
   status: "draft" | "scheduled" | "sending" | "sent" | "cancelled";
+  emailName: string | null;
   listName: string | null;
   totalRecipients: number;
   totalSent: number;
@@ -118,10 +119,10 @@ export function CampaignsPageClient() {
                   Status
                 </th>
                 <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground sm:table-cell">
-                  Audience
+                  Email
                 </th>
                 <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground md:table-cell">
-                  Recipients
+                  Audience
                 </th>
                 <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground lg:table-cell">
                   Sent
@@ -146,14 +147,12 @@ export function CampaignsPageClient() {
                   </td>
                   <td className="hidden px-4 py-2 sm:table-cell">
                     <span className="text-[13px] text-muted-foreground">
-                      {campaign.listName || "—"}
+                      {campaign.emailName || "—"}
                     </span>
                   </td>
                   <td className="hidden px-4 py-2 md:table-cell">
-                    <span className="font-stat text-[13px] text-muted-foreground">
-                      {campaign.totalRecipients > 0
-                        ? campaign.totalRecipients.toLocaleString()
-                        : "—"}
+                    <span className="text-[13px] text-muted-foreground">
+                      {campaign.listName || "—"}
                     </span>
                   </td>
                   <td className="hidden px-4 py-2 lg:table-cell">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { campaigns, lists } from "@/lib/db/schema";
+import { campaigns, lists, emails } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(
@@ -32,12 +32,26 @@ export async function POST(
     );
   }
 
-  if (!campaign.subject?.trim()) {
-    return NextResponse.json({ error: "Subject line is required" }, { status: 400 });
+  if (!campaign.emailId) {
+    return NextResponse.json({ error: "Please select an email" }, { status: 400 });
   }
 
   if (!campaign.listId) {
     return NextResponse.json({ error: "Please select an audience list" }, { status: 400 });
+  }
+
+  // Get the email template
+  const [email] = await db
+    .select()
+    .from(emails)
+    .where(eq(emails.id, campaign.emailId));
+
+  if (!email) {
+    return NextResponse.json({ error: "Selected email not found" }, { status: 400 });
+  }
+
+  if (!email.subject?.trim()) {
+    return NextResponse.json({ error: "The selected email has no subject line" }, { status: 400 });
   }
 
   // Get recipient count from list
@@ -50,11 +64,14 @@ export async function POST(
     recipientCount = list?.contactCount ?? 0;
   }
 
-  // Simulate send (actual SES integration in Phase 7)
+  // Store the email subject/html on the campaign for historical record
+  // Simulate send (actual SES integration later)
   const [updated] = await db
     .update(campaigns)
     .set({
       status: "sent",
+      subject: email.subject,
+      htmlContent: email.htmlContent,
       sentAt: new Date(),
       totalRecipients: recipientCount,
       totalSent: recipientCount,
