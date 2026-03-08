@@ -265,3 +265,8 @@
 .ProseMirror-dropcursor {
   transition: top 0.1s ease;
 }
+
+/* Block drag ghost effect */
+.tiptap [data-node-view-wrapper].dragging {
+  opacity: 0.4;
+}

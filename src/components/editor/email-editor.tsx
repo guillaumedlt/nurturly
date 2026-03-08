@@ -24,6 +24,7 @@ import {
   Plus,
   Copy,
   Trash2,
+  GripVertical,
   Columns2,
   Columns3,
   Columns4,
@@ -87,18 +88,24 @@ function ToolbarBtn({
   );
 }
 
-/* ─── Floating block actions (delete / duplicate) ─── */
+/* ─── Floating block actions (drag / duplicate / delete) ─── */
 function FloatingBlockActions({ editor }: { editor: Editor }) {
   const [info, setInfo] = useState<{
     visible: boolean;
     top: number;
     left: number;
+    height: number;
     from: number;
     size: number;
-  }>({ visible: false, top: 0, left: 0, from: 0, size: 0 });
+  }>({ visible: false, top: 0, left: 0, height: 0, from: 0, size: 0 });
+
+  const [dragging, setDragging] = useState(false);
+  const [dropIndicator, setDropIndicator] = useState<{ top: number; visible: boolean }>({ top: 0, visible: false });
+  const dragFromRef = useRef<{ from: number; size: number } | null>(null);
 
   useEffect(() => {
     const update = () => {
+      if (dragging) return; // Don't update while dragging
       const { selection } = editor.state;
       let blockFrom: number | null = null;
       let blockSize = 0;
@@ -122,6 +129,7 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
             visible: true,
             top: rect.top,
             left: rect.left - 34,
+            height: rect.height,
             from: blockFrom,
             size: blockSize,
           });
@@ -137,9 +145,117 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
       editor.off("selectionUpdate", update);
       editor.off("transaction", update);
     };
-  }, [editor]);
+  }, [editor, dragging]);
 
-  if (!info.visible) return null;
+  // Drag and drop handlers
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      const node = editor.state.doc.nodeAt(info.from);
+      if (!node) return;
+
+      dragFromRef.current = { from: info.from, size: info.size };
+      setDragging(true);
+
+      // Set drag image to the block element
+      const dom = editor.view.nodeDOM(info.from);
+      if (dom instanceof HTMLElement) {
+        e.dataTransfer.setDragImage(dom, 0, 0);
+      }
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", "block-drag");
+    },
+    [editor, info.from, info.size]
+  );
+
+  const handleDrag = useCallback(
+    (e: React.DragEvent) => {
+      if (!e.clientY) return;
+      // Find the nearest block boundary to show the drop indicator
+      const doc = editor.state.doc;
+      let bestPos = -1;
+      let bestDist = Infinity;
+      let bestTop = 0;
+
+      doc.forEach((node, offset) => {
+        // Check position before and after each top-level block
+        const positions = [offset, offset + node.nodeSize];
+        for (const pos of positions) {
+          try {
+            const coords = editor.view.coordsAtPos(pos);
+            const dist = Math.abs(coords.top - e.clientY);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestPos = pos;
+              bestTop = coords.top;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      });
+
+      if (bestPos >= 0) {
+        setDropIndicator({ top: bestTop, visible: true });
+      }
+    },
+    [editor]
+  );
+
+  const handleDragEnd = useCallback(
+    (e: React.DragEvent) => {
+      setDragging(false);
+      setDropIndicator({ top: 0, visible: false });
+
+      if (!dragFromRef.current) return;
+      const { from, size } = dragFromRef.current;
+      dragFromRef.current = null;
+
+      const node = editor.state.doc.nodeAt(from);
+      if (!node) return;
+
+      // Find the best drop position
+      const doc = editor.state.doc;
+      let bestPos = -1;
+      let bestDist = Infinity;
+
+      doc.forEach((child, offset) => {
+        const positions = [offset, offset + child.nodeSize];
+        for (const pos of positions) {
+          try {
+            const coords = editor.view.coordsAtPos(pos);
+            const dist = Math.abs(coords.top - e.clientY);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestPos = pos;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      });
+
+      if (bestPos < 0 || bestPos === from || bestPos === from + size) return;
+
+      // Move the block: delete from old position, insert at new position
+      const nodeJson = node.toJSON();
+      const tr = editor.state.tr;
+
+      if (bestPos > from) {
+        // Moving down: insert first, then delete
+        tr.insert(bestPos, editor.state.schema.nodeFromJSON(nodeJson));
+        tr.delete(from, from + size);
+      } else {
+        // Moving up: delete first, then insert
+        tr.delete(from, from + size);
+        tr.insert(bestPos, editor.state.schema.nodeFromJSON(nodeJson));
+      }
+
+      editor.view.dispatch(tr);
+    },
+    [editor]
+  );
+
+  if (!info.visible && !dragging) return null;
 
   const deleteBlock = () => {
     editor
@@ -161,27 +277,56 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
   };
 
   return (
-    <div
-      className="fixed z-30 flex flex-col gap-0.5 animate-in fade-in duration-150"
-      style={{ top: info.top, left: Math.max(info.left, 4) }}
-    >
-      <button
-        type="button"
-        onClick={duplicateBlock}
-        title="Duplicate block"
-        className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
-      >
-        <Copy className="h-3 w-3" />
-      </button>
-      <button
-        type="button"
-        onClick={deleteBlock}
-        title="Delete block"
-        className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-destructive/10 hover:text-destructive"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
-    </div>
+    <>
+      {info.visible && (
+        <div
+          className="fixed z-30 flex flex-col gap-0.5 animate-in fade-in duration-150"
+          style={{ top: info.top, left: Math.max(info.left, 4) }}
+        >
+          <div
+            draggable
+            onDragStart={handleDragStart}
+            onDrag={handleDrag}
+            onDragEnd={handleDragEnd}
+            title="Drag to reorder"
+            className="flex h-6 w-6 cursor-grab items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground active:cursor-grabbing"
+          >
+            <GripVertical className="h-3 w-3" />
+          </div>
+          <button
+            type="button"
+            onClick={duplicateBlock}
+            title="Duplicate block"
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={deleteBlock}
+            title="Delete block"
+            className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+
+      {/* Drop indicator line */}
+      {dropIndicator.visible && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            top: dropIndicator.top - 1,
+            left: info.left + 34,
+            width: 600,
+          }}
+        >
+          <div className="h-0.5 rounded-full bg-ring" />
+          <div className="absolute -left-1 -top-[3px] h-2 w-2 rounded-full bg-ring" />
+        </div>
+      )}
+    </>
   );
 }
 
