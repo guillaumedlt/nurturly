@@ -162,8 +162,8 @@ export function getSlashCommandItems(options?: SlashCommandOptions): SlashComman
       },
     },
     {
-      title: "2 Columns",
-      description: "Two-column layout",
+      title: "Block",
+      description: "Horizontal block layout (1–4 columns)",
       icon: "columns2",
       category: "Layout",
       command: ({ editor, range }) => {
@@ -172,25 +172,6 @@ export function getSlashCommandItems(options?: SlashCommandOptions): SlashComman
             type: "columnsBlock",
             attrs: { columns: 2, gap: 16 },
             content: [
-              { type: "columnCell", content: [{ type: "paragraph" }] },
-              { type: "columnCell", content: [{ type: "paragraph" }] },
-            ],
-          })
-          .run();
-      },
-    },
-    {
-      title: "3 Columns",
-      description: "Three-column layout",
-      icon: "columns3",
-      category: "Layout",
-      command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range)
-          .insertContent({
-            type: "columnsBlock",
-            attrs: { columns: 3, gap: 16 },
-            content: [
-              { type: "columnCell", content: [{ type: "paragraph" }] },
               { type: "columnCell", content: [{ type: "paragraph" }] },
               { type: "columnCell", content: [{ type: "paragraph" }] },
             ],

@@ -215,22 +215,18 @@
   border-radius: 4px;
 }
 
-/* Column cells take equal space as flex items */
-.tiptap [data-column-cell] {
-  flex: 1;
-  min-width: 0;
-}
-
 /* Section block content area */
 .tiptap [data-section-block] [data-node-view-content] {
   min-height: 32px;
 }
 
-/* Column cell editable area */
+/* Column cells — native ProseMirror rendering, flex handled by inline styles */
 .tiptap [data-column-cell] {
+  flex: 1;
+  min-width: 0;
   border: 1px dashed transparent;
   border-radius: 4px;
-  padding: 4px;
+  padding: 8px;
   transition: border-color 0.15s;
 }
 
@@ -240,6 +236,17 @@
 
 .tiptap [data-column-cell]:focus-within {
   border-color: var(--ring);
+}
+
+/* Columns block hover outline */
+.tiptap [data-columns-block] {
+  border-radius: 6px;
+  transition: outline 0.15s ease;
+}
+
+.tiptap [data-columns-block]:hover {
+  outline: 1px dashed var(--border);
+  outline-offset: 4px;
 }
 
 /* Block node hover feedback */

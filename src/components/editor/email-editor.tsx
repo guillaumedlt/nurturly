@@ -24,6 +24,10 @@ import {
   Plus,
   Copy,
   Trash2,
+  Columns2,
+  Columns3,
+  Columns4,
+  Square,
 } from "lucide-react";
 
 import { VariableNode, AVAILABLE_VARIABLES } from "@/lib/editor/extensions/variable-node";
@@ -39,7 +43,6 @@ import { ButtonBlockView } from "./button-block-view";
 import { SpacerBlockView } from "./spacer-block-view";
 import { VariableNodeView } from "./variable-node-view";
 import { SectionBlockView } from "./section-block-view";
-import { ColumnsBlockView } from "./columns-block-view";
 import { SocialBlockView } from "./social-block-view";
 import { DividerBlockView } from "./divider-block-view";
 
@@ -182,6 +185,124 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
   );
 }
 
+/* ─── Floating column controls ─── */
+function ColumnControls({ editor }: { editor: Editor }) {
+  const [info, setInfo] = useState<{
+    visible: boolean;
+    top: number;
+    left: number;
+    width: number;
+    blockPos: number;
+    currentColumns: number;
+  }>({ visible: false, top: 0, left: 0, width: 0, blockPos: 0, currentColumns: 0 });
+
+  useEffect(() => {
+    const update = () => {
+      const { selection } = editor.state;
+      // Walk up the tree to find a columnsBlock
+      for (let d = selection.$from.depth; d >= 1; d--) {
+        const node = selection.$from.node(d);
+        if (node.type.name === "columnsBlock") {
+          const pos = selection.$from.before(d);
+          const dom = editor.view.nodeDOM(pos);
+          if (dom instanceof HTMLElement) {
+            const rect = dom.getBoundingClientRect();
+            setInfo({
+              visible: true,
+              top: rect.top - 36,
+              left: rect.left + rect.width / 2,
+              width: rect.width,
+              blockPos: pos,
+              currentColumns: node.childCount,
+            });
+            return;
+          }
+        }
+      }
+      setInfo((prev) => ({ ...prev, visible: false }));
+    };
+
+    editor.on("selectionUpdate", update);
+    editor.on("transaction", update);
+    return () => {
+      editor.off("selectionUpdate", update);
+      editor.off("transaction", update);
+    };
+  }, [editor]);
+
+  if (!info.visible) return null;
+
+  const changeColumns = (newCount: number) => {
+    const node = editor.state.doc.nodeAt(info.blockPos);
+    if (!node || node.type.name !== "columnsBlock") return;
+    const currentCount = node.childCount;
+    if (newCount === currentCount) return;
+
+    if (newCount > currentCount) {
+      // Add columns at the end of the columnsBlock
+      const endPos = info.blockPos + node.nodeSize - 1;
+      for (let i = currentCount; i < newCount; i++) {
+        editor.chain().insertContentAt(endPos, {
+          type: "columnCell",
+          content: [{ type: "paragraph" }],
+        }).run();
+      }
+    } else if (newCount < currentCount) {
+      // Remove columns from the end
+      const tr = editor.state.tr;
+      let removeCount = currentCount - newCount;
+      // Walk children in reverse to find positions to delete
+      let offset = info.blockPos + 1;
+      const childPositions: { from: number; to: number }[] = [];
+      node.forEach((child, childOffset) => {
+        childPositions.push({
+          from: info.blockPos + 1 + childOffset,
+          to: info.blockPos + 1 + childOffset + child.nodeSize,
+        });
+      });
+      // Delete from the end
+      for (let i = childPositions.length - 1; i >= 0 && removeCount > 0; i--, removeCount--) {
+        tr.delete(childPositions[i].from, childPositions[i].to);
+      }
+      editor.view.dispatch(tr);
+    }
+    // Update the columns attribute
+    editor.chain().focus().command(({ tr }) => {
+      tr.setNodeMarkup(info.blockPos, undefined, {
+        ...node.attrs,
+        columns: newCount,
+      });
+      return true;
+    }).run();
+  };
+
+  return (
+    <div
+      className="fixed z-50 flex items-center gap-0.5 rounded-full border border-border bg-background p-0.5 shadow-sm animate-in fade-in duration-150"
+      style={{ top: Math.max(info.top, 4), left: info.left, transform: "translateX(-50%)" }}
+    >
+      {([1, 2, 3, 4] as const).map((c) => {
+        const Icon = c === 1 ? Square : c === 2 ? Columns2 : c === 3 ? Columns3 : Columns4;
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => changeColumns(c)}
+            title={`${c} column${c > 1 ? "s" : ""}`}
+            className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors ${
+              info.currentColumns === c
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─── Main editor ─── */
 interface EmailEditorProps {
   content: string; // JSON string
@@ -281,11 +402,7 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
           return ReactNodeViewRenderer(SectionBlockView);
         },
       }),
-      ColumnsBlock.extend({
-        addNodeView() {
-          return ReactNodeViewRenderer(ColumnsBlockView);
-        },
-      }),
+      ColumnsBlock,
       ColumnCell,
       SocialBlock.extend({
         addNodeView() {
@@ -581,6 +698,9 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
 
       {/* ─── Floating block actions ─── */}
       <FloatingBlockActions editor={editor} />
+
+      {/* ─── Column controls (when cursor is inside a columnsBlock) ─── */}
+      <ColumnControls editor={editor} />
 
       {/* ─── Slash command popup ─── */}
       {slashOpen && slashItems.length > 0 && (

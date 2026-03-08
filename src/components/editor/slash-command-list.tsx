@@ -21,7 +21,6 @@ import {
   Braces,
   SquareDashedBottom,
   Columns2,
-  Columns3,
   Share2,
 } from "lucide-react";
 import type { SlashCommandItem } from "@/lib/editor/extensions/slash-command";
@@ -40,7 +39,6 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   variable: Braces,
   section: SquareDashedBottom,
   columns2: Columns2,
-  columns3: Columns3,
   social: Share2,
 };
 
