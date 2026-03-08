@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   Zap,
   Mail,
@@ -14,6 +14,10 @@ import {
   ChevronDown,
   Check,
   Search,
+  LayoutGrid,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from "lucide-react";
 import type {
   WorkflowDefinition,
@@ -33,7 +37,8 @@ import { NODE_META } from "@/lib/sequences/types";
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 72;
 const CONDITION_HEIGHT = 80;
-const CANVAS_PADDING = 80;
+const V_GAP = 100; // vertical gap between node centers
+const H_GAP = 300; // horizontal gap between branches
 
 /* ─── Node Icon Map ─── */
 const NODE_ICONS: Record<WorkflowNodeType, typeof Zap> = {
@@ -59,39 +64,163 @@ function genId(prefix: string) {
   return `${prefix}-${Date.now()}-${++idCounter}`;
 }
 
+/* ─────────────────────────────────────────────
+   Auto-layout algorithm (tree layout from trigger)
+   ───────────────────────────────────────────── */
+function autoLayoutWorkflow(workflow: WorkflowDefinition): WorkflowDefinition {
+  if (workflow.nodes.length === 0) return workflow;
+
+  const trigger = workflow.nodes.find((n) => n.type === "trigger");
+  if (!trigger) return workflow;
+
+  // Build adjacency: source -> [{ target, handle }]
+  const children: Record<string, { target: string; handle?: string }[]> = {};
+  for (const edge of workflow.edges) {
+    if (!children[edge.source]) children[edge.source] = [];
+    children[edge.source].push({ target: edge.target, handle: edge.sourceHandle });
+  }
+
+  // Recursive layout: returns { width } of the subtree
+  // and assigns positions to each node
+  const positions: Record<string, { x: number; y: number }> = {};
+
+  function layoutSubtree(nodeId: string, depth: number): number {
+    const node = workflow.nodes.find((n) => n.id === nodeId);
+    if (!node) return NODE_WIDTH;
+
+    const kids = children[nodeId] || [];
+    const isCondition = node.type === "condition";
+
+    if (kids.length === 0) {
+      // Leaf node
+      positions[nodeId] = { x: 0, y: depth * (NODE_HEIGHT + V_GAP) };
+      return NODE_WIDTH;
+    }
+
+    if (isCondition && kids.length === 2) {
+      // Sort: "yes" on left, "no" on right
+      const sorted = [...kids].sort((a, b) => {
+        if (a.handle === "yes") return -1;
+        if (b.handle === "yes") return 1;
+        return 0;
+      });
+
+      const leftWidth = layoutSubtree(sorted[0].target, depth + 1);
+      const rightWidth = layoutSubtree(sorted[1].target, depth + 1);
+      const totalWidth = leftWidth + H_GAP + rightWidth;
+
+      // Center condition node over its children
+      const leftCenter = positions[sorted[0].target]?.x ?? 0;
+      const rightCenter = positions[sorted[1].target]?.x ?? 0;
+
+      // Position children relative to center
+      const centerX = 0;
+      const leftOffset = centerX - H_GAP / 2 - leftWidth / 2;
+      const rightOffset = centerX + H_GAP / 2 + rightWidth / 2;
+
+      // Shift left subtree
+      shiftSubtree(sorted[0].target, leftOffset - (positions[sorted[0].target]?.x ?? 0), children, positions);
+      // Shift right subtree
+      shiftSubtree(sorted[1].target, rightOffset - (positions[sorted[1].target]?.x ?? 0), children, positions);
+
+      positions[nodeId] = { x: centerX, y: depth * (NODE_HEIGHT + V_GAP) };
+      return Math.max(totalWidth, NODE_WIDTH);
+    }
+
+    // Single child (most common)
+    if (kids.length === 1) {
+      const childWidth = layoutSubtree(kids[0].target, depth + 1);
+      const childX = positions[kids[0].target]?.x ?? 0;
+      positions[nodeId] = { x: childX, y: depth * (NODE_HEIGHT + V_GAP) };
+      return childWidth;
+    }
+
+    // Multiple children (shouldn't happen normally, but handle gracefully)
+    let totalW = 0;
+    const childXs: number[] = [];
+    for (let i = 0; i < kids.length; i++) {
+      const w = layoutSubtree(kids[i].target, depth + 1);
+      if (i > 0) totalW += H_GAP;
+      childXs.push(totalW + w / 2);
+      totalW += w;
+    }
+    // Center parent over children
+    const firstX = childXs[0];
+    const lastX = childXs[childXs.length - 1];
+    const centerX = (firstX + lastX) / 2;
+
+    // Shift children to be relative to center
+    const offset = -centerX;
+    for (let i = 0; i < kids.length; i++) {
+      shiftSubtree(kids[i].target, offset + childXs[i] - (positions[kids[i].target]?.x ?? 0), children, positions);
+    }
+
+    positions[nodeId] = { x: 0, y: depth * (NODE_HEIGHT + V_GAP) };
+    return totalW;
+  }
+
+  function shiftSubtree(
+    nodeId: string,
+    dx: number,
+    adj: Record<string, { target: string }[]>,
+    pos: Record<string, { x: number; y: number }>
+  ) {
+    if (!pos[nodeId]) return;
+    pos[nodeId].x += dx;
+    const kids = adj[nodeId] || [];
+    for (const k of kids) {
+      shiftSubtree(k.target, dx, adj, pos);
+    }
+  }
+
+  layoutSubtree(trigger.id, 0);
+
+  // Find bounding box and center everything
+  const xs = Object.values(positions).map((p) => p.x);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const centerOffset = -((maxX + minX) / 2);
+
+  // Apply positions with centering (will be offset by canvas center later)
+  const updatedNodes = workflow.nodes.map((n) => {
+    const pos = positions[n.id];
+    if (pos) {
+      return {
+        ...n,
+        position: {
+          x: pos.x + centerOffset,
+          y: pos.y + 60, // top padding
+        },
+      };
+    }
+    return n;
+  });
+
+  return { ...workflow, nodes: updatedNodes };
+}
+
 /* ─── SVG Edge Path ─── */
 function EdgePath({
-  x1, y1, x2, y2, label, dashed,
+  x1, y1, x2, y2, dashed,
 }: {
   x1: number; y1: number; x2: number; y2: number;
-  label?: string; dashed?: boolean;
+  dashed?: boolean;
 }) {
-  const midY = (y1 + y2) / 2;
+  const dy = y2 - y1;
+  const controlY = Math.min(dy * 0.5, 60);
   const d = x1 === x2
-    ? `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`
-    : `M ${x1} ${y1} C ${x1} ${y1 + 50}, ${x2} ${y2 - 50}, ${x2} ${y2}`;
+    ? `M ${x1} ${y1} C ${x1} ${y1 + controlY}, ${x2} ${y2 - controlY}, ${x2} ${y2}`
+    : `M ${x1} ${y1} C ${x1} ${y1 + controlY}, ${x2} ${y2 - controlY}, ${x2} ${y2}`;
 
   return (
-    <g>
-      <path
-        d={d}
-        fill="none"
-        stroke="var(--border)"
-        strokeWidth={2}
-        strokeDasharray={dashed ? "6 4" : undefined}
-        className="transition-colors"
-      />
-      {label && (
-        <text
-          x={(x1 + x2) / 2}
-          y={(y1 + y2) / 2 - 6}
-          textAnchor="middle"
-          className="fill-muted-foreground text-[10px] font-medium"
-        >
-          {label}
-        </text>
-      )}
-    </g>
+    <path
+      d={d}
+      fill="none"
+      stroke="var(--border)"
+      strokeWidth={2}
+      strokeDasharray={dashed ? "6 4" : undefined}
+      className="transition-colors"
+    />
   );
 }
 
@@ -126,8 +255,11 @@ function AddNodeButton({
         className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${
           open
             ? "border-foreground bg-foreground text-background scale-110"
-            : "border-border bg-background text-muted-foreground hover:border-foreground hover:bg-foreground hover:text-background hover:scale-110"
+            : "border-border bg-background text-muted-foreground opacity-0 hover:opacity-100 hover:border-foreground hover:bg-foreground hover:text-background hover:scale-110"
         }`}
+        style={open ? {} : undefined}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+        onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLElement).style.opacity = ""; }}
       >
         <Plus className="h-3 w-3" />
       </button>
@@ -294,7 +426,6 @@ function NodeConfigPanel({
 
   return (
     <div className="flex h-full flex-col border-l border-border bg-background">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <div
@@ -305,38 +436,20 @@ function NodeConfigPanel({
           </div>
           <span className="text-[13px] font-medium text-foreground">{meta.label}</span>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-[12px] text-muted-foreground hover:text-foreground"
-        >
+        <button type="button" onClick={onClose} className="text-[12px] text-muted-foreground hover:text-foreground">
           Done
         </button>
       </div>
 
-      {/* Config body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {node.type === "trigger" && (
-          <TriggerConfig data={node.data as TriggerNodeData} lists={lists} onUpdate={onUpdate} />
-        )}
-        {node.type === "email" && (
-          <EmailConfig data={node.data as EmailNodeData} emails={emails} onUpdate={onUpdate} />
-        )}
-        {node.type === "delay" && (
-          <DelayConfig data={node.data as DelayNodeData} onUpdate={onUpdate} />
-        )}
-        {node.type === "condition" && (
-          <ConditionConfig data={node.data as ConditionNodeData} emailNodes={emailNodes} onUpdate={onUpdate} />
-        )}
-        {node.type === "action" && (
-          <ActionConfig data={node.data as ActionNodeData} lists={lists} onUpdate={onUpdate} />
-        )}
-        {node.type === "end" && (
-          <p className="text-[13px] text-muted-foreground">Contacts reaching this node exit the sequence.</p>
-        )}
+        {node.type === "trigger" && <TriggerConfig data={node.data as TriggerNodeData} lists={lists} onUpdate={onUpdate} />}
+        {node.type === "email" && <EmailConfig data={node.data as EmailNodeData} emails={emails} onUpdate={onUpdate} />}
+        {node.type === "delay" && <DelayConfig data={node.data as DelayNodeData} onUpdate={onUpdate} />}
+        {node.type === "condition" && <ConditionConfig data={node.data as ConditionNodeData} emailNodes={emailNodes} onUpdate={onUpdate} />}
+        {node.type === "action" && <ActionConfig data={node.data as ActionNodeData} lists={lists} onUpdate={onUpdate} />}
+        {node.type === "end" && <p className="text-[13px] text-muted-foreground">Contacts reaching this node exit the sequence.</p>}
       </div>
 
-      {/* Delete button */}
       {node.type !== "trigger" && (
         <div className="border-t border-border p-4">
           <button
@@ -440,7 +553,7 @@ function DelayConfig({ data, onUpdate }: {
   data: DelayNodeData; onUpdate: (d: WorkflowNodeData) => void;
 }) {
   const units = [
-    { value: "minutes", label: "Minutes" },
+    { value: "minutes", label: "Min" },
     { value: "hours", label: "Hours" },
     { value: "days", label: "Days" },
     { value: "weeks", label: "Weeks" },
@@ -623,7 +736,7 @@ function WorkflowNodeCard({
 
   return (
     <div
-      className={`absolute select-none transition-shadow duration-150 ${selected ? "z-10" : "z-0"}`}
+      className={`absolute select-none transition-all duration-200 ${selected ? "z-10" : "z-0"}`}
       style={{
         left: node.position.x - NODE_WIDTH / 2,
         top: node.position.y - height / 2,
@@ -640,12 +753,14 @@ function WorkflowNodeCard({
         style={{ height }}
       >
         {/* Drag handle */}
-        <div
-          onMouseDown={onDragStart}
-          className="absolute -left-7 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground active:cursor-grabbing"
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </div>
+        {node.type !== "trigger" && (
+          <div
+            onMouseDown={onDragStart}
+            className="absolute -left-7 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground active:cursor-grabbing"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </div>
+        )}
 
         {/* Icon */}
         <div
@@ -677,6 +792,60 @@ function WorkflowNodeCard({
   );
 }
 
+/* ─── Floating Canvas Toolbar ─── */
+function CanvasToolbar({
+  onOrganize, onFitView, zoom, onZoomIn, onZoomOut,
+}: {
+  onOrganize: () => void;
+  onFitView: () => void;
+  zoom: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}) {
+  return (
+    <div className="absolute bottom-4 left-4 z-30 flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-sm">
+      <button
+        type="button"
+        onClick={onOrganize}
+        title="Auto-organize layout"
+        className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+        Organize
+      </button>
+      <div className="mx-0.5 h-4 w-px bg-border" />
+      <button
+        type="button"
+        onClick={onZoomOut}
+        title="Zoom out"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <ZoomOut className="h-3.5 w-3.5" />
+      </button>
+      <span className="min-w-[36px] text-center text-[11px] font-medium text-muted-foreground">
+        {Math.round(zoom * 100)}%
+      </span>
+      <button
+        type="button"
+        onClick={onZoomIn}
+        title="Zoom in"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <ZoomIn className="h-3.5 w-3.5" />
+      </button>
+      <div className="mx-0.5 h-4 w-px bg-border" />
+      <button
+        type="button"
+        onClick={onFitView}
+        title="Fit to view"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <Maximize2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 /* ─── Main Workflow Builder ─── */
 interface WorkflowBuilderProps {
   workflow: WorkflowDefinition;
@@ -687,12 +856,13 @@ interface WorkflowBuilderProps {
 
 export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowBuilderProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
   const canvasRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
+  const initializedRef = useRef(false);
 
   const selectedNode = workflow.nodes.find((n) => n.id === selectedNodeId) ?? null;
 
-  // Email nodes for condition references
   const emailNodes = workflow.nodes
     .filter((n) => n.type === "email")
     .map((n) => ({
@@ -700,22 +870,128 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       name: (n.data as EmailNodeData).emailName || "Untitled email",
     }));
 
-  // Canvas dimensions
-  const canvasWidth = Math.max(
-    800,
-    ...workflow.nodes.map((n) => n.position.x + NODE_WIDTH / 2 + CANVAS_PADDING)
-  );
-  const canvasHeight = Math.max(
-    500,
-    ...workflow.nodes.map((n) => n.position.y + 100 + CANVAS_PADDING)
-  );
+  // ─── Compute canvas-relative positions (center workflow in viewport) ───
+  const { offsetX, offsetY, canvasW, canvasH } = useMemo(() => {
+    if (workflow.nodes.length === 0) return { offsetX: 0, offsetY: 0, canvasW: 800, canvasH: 500 };
+
+    const xs = workflow.nodes.map((n) => n.position.x);
+    const ys = workflow.nodes.map((n) => n.position.y);
+    const minX = Math.min(...xs) - NODE_WIDTH / 2;
+    const maxX = Math.max(...xs) + NODE_WIDTH / 2;
+    const minY = Math.min(...ys) - CONDITION_HEIGHT / 2;
+    const maxY = Math.max(...ys) + CONDITION_HEIGHT / 2;
+
+    const contentW = maxX - minX + 200;
+    const contentH = maxY - minY + 200;
+    const w = Math.max(contentW, 1200);
+    const h = Math.max(contentH, 800);
+
+    // Offset to center the content in canvas
+    const ox = (w - contentW) / 2 - minX + 100;
+    const oy = -minY + 100;
+
+    return { offsetX: ox, offsetY: oy, canvasW: w, canvasH: h };
+  }, [workflow.nodes]);
+
+  // ─── Auto-center scroll on first load ───
+  useEffect(() => {
+    if (initializedRef.current || !canvasRef.current || workflow.nodes.length === 0) return;
+    initializedRef.current = true;
+
+    const container = canvasRef.current;
+    const trigger = workflow.nodes.find((n) => n.type === "trigger");
+    if (!trigger) return;
+
+    // Scroll so trigger is centered in viewport
+    const triggerScreenX = (trigger.position.x + offsetX) * zoom;
+    const triggerScreenY = (trigger.position.y + offsetY) * zoom;
+
+    requestAnimationFrame(() => {
+      container.scrollLeft = triggerScreenX - container.clientWidth / 2;
+      container.scrollTop = Math.max(0, triggerScreenY - 120);
+    });
+  }, [workflow.nodes, offsetX, offsetY, zoom]);
+
+  // ─── Organize handler ───
+  const handleOrganize = useCallback(() => {
+    const organized = autoLayoutWorkflow(workflow);
+    onChange(organized);
+
+    // Re-center after organize
+    requestAnimationFrame(() => {
+      if (!canvasRef.current) return;
+      const container = canvasRef.current;
+      const trigger = organized.nodes.find((n) => n.type === "trigger");
+      if (!trigger) return;
+
+      const xs = organized.nodes.map((n) => n.position.x);
+      const ys = organized.nodes.map((n) => n.position.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const contentW = maxX - minX + NODE_WIDTH + 200;
+      const w = Math.max(contentW, 1200);
+      const ox = (w - contentW) / 2 - minX + NODE_WIDTH / 2 + 100;
+
+      const centerX = (trigger.position.x + ox) * zoom;
+      container.scrollLeft = centerX - container.clientWidth / 2;
+      container.scrollTop = 0;
+    });
+  }, [workflow, onChange, zoom]);
+
+  // ─── Fit view ───
+  const handleFitView = useCallback(() => {
+    if (!canvasRef.current || workflow.nodes.length === 0) return;
+    const container = canvasRef.current;
+
+    const xs = workflow.nodes.map((n) => n.position.x);
+    const ys = workflow.nodes.map((n) => n.position.y);
+    const minX = Math.min(...xs) - NODE_WIDTH;
+    const maxX = Math.max(...xs) + NODE_WIDTH;
+    const minY = Math.min(...ys) - CONDITION_HEIGHT;
+    const maxY = Math.max(...ys) + CONDITION_HEIGHT;
+
+    const contentW = maxX - minX + 100;
+    const contentH = maxY - minY + 100;
+
+    const scaleX = container.clientWidth / contentW;
+    const scaleY = container.clientHeight / contentH;
+    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.3), 1.5);
+
+    setZoom(newZoom);
+
+    requestAnimationFrame(() => {
+      const cx = ((minX + maxX) / 2 + offsetX) * newZoom;
+      const cy = ((minY + maxY) / 2 + offsetY) * newZoom;
+      container.scrollLeft = cx - container.clientWidth / 2;
+      container.scrollTop = cy - container.clientHeight / 2;
+    });
+  }, [workflow.nodes, offsetX, offsetY]);
+
+  // ─── Zoom ───
+  const handleZoomIn = useCallback(() => setZoom((z) => Math.min(z + 0.1, 2)), []);
+  const handleZoomOut = useCallback(() => setZoom((z) => Math.max(z - 0.1, 0.3)), []);
+
+  // Mouse wheel zoom
+  useEffect(() => {
+    const container = canvasRef.current;
+    if (!container) return;
+    const handler = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        setZoom((z) => Math.min(Math.max(z + delta, 0.3), 2));
+      }
+    };
+    container.addEventListener("wheel", handler, { passive: false });
+    return () => container.removeEventListener("wheel", handler);
+  }, []);
 
   // ─── Node dragging ───
   const handleNodeDragStart = useCallback(
     (nodeId: string, e: React.MouseEvent) => {
       e.stopPropagation();
       const node = workflow.nodes.find((n) => n.id === nodeId);
-      if (!node || node.type === "trigger") return; // Can't drag trigger
+      if (!node || node.type === "trigger") return;
 
       const canvasRect = canvasRef.current?.getBoundingClientRect();
       if (!canvasRect) return;
@@ -725,8 +1001,8 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
 
       draggingRef.current = {
         nodeId,
-        offsetX: e.clientX - canvasRect.left + scrollLeft - node.position.x,
-        offsetY: e.clientY - canvasRect.top + scrollTop - node.position.y,
+        offsetX: e.clientX - canvasRect.left + scrollLeft - (node.position.x + offsetX) * zoom,
+        offsetY: e.clientY - canvasRect.top + scrollTop - (node.position.y + offsetY) * zoom,
       };
 
       const onMouseMove = (ev: MouseEvent) => {
@@ -734,14 +1010,14 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         const rect = canvasRef.current.getBoundingClientRect();
         const sl = canvasRef.current.scrollLeft;
         const st = canvasRef.current.scrollTop;
-        const x = Math.max(NODE_WIDTH / 2, ev.clientX - rect.left + sl - draggingRef.current.offsetX);
-        const y = Math.max(40, ev.clientY - rect.top + st - draggingRef.current.offsetY);
+        const rawX = (ev.clientX - rect.left + sl - draggingRef.current.offsetX) / zoom - offsetX;
+        const rawY = (ev.clientY - rect.top + st - draggingRef.current.offsetY) / zoom - offsetY;
 
         onChange({
           ...workflow,
           nodes: workflow.nodes.map((n) =>
             n.id === draggingRef.current!.nodeId
-              ? { ...n, position: { x, y } }
+              ? { ...n, position: { x: rawX, y: rawY } }
               : n
           ),
         });
@@ -756,7 +1032,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [workflow, onChange]
+    [workflow, onChange, offsetX, offsetY, zoom]
   );
 
   // ─── Add node on edge ───
@@ -773,7 +1049,6 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       const midX = (sourceNode.position.x + targetNode.position.x) / 2;
       const midY = (sourceNode.position.y + targetNode.position.y) / 2;
 
-      // Default data for each type
       let data: WorkflowNodeData;
       switch (type) {
         case "email": data = { emailId: undefined, emailName: undefined, subject: undefined } as unknown as EmailNodeData; break;
@@ -783,15 +1058,9 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         default: data = {}; break;
       }
 
-      const newNode: WorkflowNode = {
-        id: newId,
-        type,
-        position: { x: midX, y: midY },
-        data,
-      };
+      const newNode: WorkflowNode = { id: newId, type, position: { x: midX, y: midY }, data };
 
-      // Shift target and all nodes below down
-      const shiftAmount = 160;
+      const shiftAmount = NODE_HEIGHT + V_GAP;
       const updatedNodes = workflow.nodes.map((n) => {
         if (n.position.y >= midY && n.id !== edge.source) {
           return { ...n, position: { ...n.position, y: n.position.y + shiftAmount } };
@@ -802,15 +1071,12 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       let newEdges: WorkflowEdge[];
 
       if (type === "condition") {
-        // Condition creates two branches — we need a second end node for the "no" branch
         const endId = genId("end");
         const endNode: WorkflowNode = {
-          id: endId,
-          type: "end",
-          position: { x: midX + 200, y: midY + shiftAmount },
+          id: endId, type: "end",
+          position: { x: midX + H_GAP / 2, y: midY + shiftAmount },
           data: {},
         };
-
         updatedNodes.push(endNode);
 
         newEdges = workflow.edges
@@ -829,11 +1095,9 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
           ]);
       }
 
-      onChange({
-        nodes: [...updatedNodes, newNode],
-        edges: newEdges,
-      });
-
+      const newWorkflow = { nodes: [...updatedNodes, newNode], edges: newEdges };
+      // Auto-organize after adding
+      onChange(autoLayoutWorkflow(newWorkflow));
       setSelectedNodeId(newId);
     },
     [workflow, onChange]
@@ -845,37 +1109,24 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       const node = workflow.nodes.find((n) => n.id === nodeId);
       if (!node || node.type === "trigger") return;
 
-      // Find incoming and outgoing edges
       const incomingEdges = workflow.edges.filter((e) => e.target === nodeId);
       const outgoingEdges = workflow.edges.filter((e) => e.source === nodeId);
 
-      let newEdges = workflow.edges.filter(
-        (e) => e.source !== nodeId && e.target !== nodeId
-      );
+      let newEdges = workflow.edges.filter((e) => e.source !== nodeId && e.target !== nodeId);
 
-      // Reconnect: each incoming source connects to the first outgoing target
       if (outgoingEdges.length > 0) {
         const mainTarget = outgoingEdges[0].target;
         for (const inc of incomingEdges) {
-          newEdges.push({
-            id: genId("e"),
-            source: inc.source,
-            target: mainTarget,
-            sourceHandle: inc.sourceHandle,
-          });
+          newEdges.push({ id: genId("e"), source: inc.source, target: mainTarget, sourceHandle: inc.sourceHandle });
         }
       }
 
-      // Remove orphaned end nodes (that have no incoming edges after this delete)
       let nodesToRemove = [nodeId];
       if (node.type === "condition") {
-        // Also remove the "no" branch end node if it's an auto-generated end
         for (const oe of outgoingEdges) {
           const targetNode = workflow.nodes.find((n) => n.id === oe.target);
           if (targetNode?.type === "end") {
-            const otherIncoming = workflow.edges.filter(
-              (e) => e.target === oe.target && e.source !== nodeId
-            );
+            const otherIncoming = workflow.edges.filter((e) => e.target === oe.target && e.source !== nodeId);
             if (otherIncoming.length === 0) {
               nodesToRemove.push(oe.target);
               newEdges = newEdges.filter((e) => e.source !== oe.target && e.target !== oe.target);
@@ -884,11 +1135,11 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         }
       }
 
-      onChange({
+      const result = {
         nodes: workflow.nodes.filter((n) => !nodesToRemove.includes(n.id)),
         edges: newEdges,
-      });
-
+      };
+      onChange(autoLayoutWorkflow(result));
       setSelectedNodeId(null);
     },
     [workflow, onChange]
@@ -900,52 +1151,48 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       if (!selectedNodeId) return;
       onChange({
         ...workflow,
-        nodes: workflow.nodes.map((n) =>
-          n.id === selectedNodeId ? { ...n, data } : n
-        ),
+        nodes: workflow.nodes.map((n) => n.id === selectedNodeId ? { ...n, data } : n),
       });
     },
     [workflow, onChange, selectedNodeId]
   );
 
-  // ─── Compute edge positions ───
-  const edgeElements: {
-    id: string;
-    x1: number; y1: number;
-    x2: number; y2: number;
-    label?: string;
-    midX: number; midY: number;
-    dashed?: boolean;
-  }[] = [];
+  // ─── Compute edge positions (with offset) ───
+  const edgeElements = useMemo(() => {
+    const result: {
+      id: string; x1: number; y1: number; x2: number; y2: number;
+      midX: number; midY: number; dashed?: boolean;
+    }[] = [];
 
-  for (const edge of workflow.edges) {
-    const source = workflow.nodes.find((n) => n.id === edge.source);
-    const target = workflow.nodes.find((n) => n.id === edge.target);
-    if (!source || !target) continue;
+    for (const edge of workflow.edges) {
+      const source = workflow.nodes.find((n) => n.id === edge.source);
+      const target = workflow.nodes.find((n) => n.id === edge.target);
+      if (!source || !target) continue;
 
-    const isCondition = source.type === "condition";
-    const sourceH = isCondition ? CONDITION_HEIGHT : NODE_HEIGHT;
+      const isCondition = source.type === "condition";
+      const sourceH = isCondition ? CONDITION_HEIGHT : NODE_HEIGHT;
 
-    let x1 = source.position.x;
-    if (isCondition && edge.sourceHandle === "yes") {
-      x1 = source.position.x - NODE_WIDTH / 4;
-    } else if (isCondition && edge.sourceHandle === "no") {
-      x1 = source.position.x + NODE_WIDTH / 4;
+      let x1 = source.position.x + offsetX;
+      if (isCondition && edge.sourceHandle === "yes") {
+        x1 = source.position.x + offsetX - NODE_WIDTH / 4;
+      } else if (isCondition && edge.sourceHandle === "no") {
+        x1 = source.position.x + offsetX + NODE_WIDTH / 4;
+      }
+
+      const y1 = source.position.y + offsetY + sourceH / 2;
+      const targetH = target.type === "condition" ? CONDITION_HEIGHT : NODE_HEIGHT;
+      const x2 = target.position.x + offsetX;
+      const y2 = target.position.y + offsetY - targetH / 2;
+
+      result.push({
+        id: edge.id, x1, y1, x2, y2,
+        midX: (x1 + x2) / 2,
+        midY: (y1 + y2) / 2,
+        dashed: edge.sourceHandle === "no",
+      });
     }
-
-    const y1 = source.position.y + sourceH / 2;
-    const targetH = target.type === "condition" ? CONDITION_HEIGHT : NODE_HEIGHT;
-    const x2 = target.position.x;
-    const y2 = target.position.y - targetH / 2;
-
-    edgeElements.push({
-      id: edge.id,
-      x1, y1, x2, y2,
-      midX: (x1 + x2) / 2,
-      midY: (y1 + y2) / 2,
-      dashed: edge.sourceHandle === "no",
-    });
-  }
+    return result;
+  }, [workflow, offsetX, offsetY]);
 
   return (
     <div className="flex h-full">
@@ -955,7 +1202,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         className="relative flex-1 overflow-auto bg-[var(--muted)]"
         style={{
           backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
+          backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
         }}
         onClick={(e) => {
           if (e.target === e.currentTarget || (e.target as HTMLElement).closest("[data-canvas-bg]")) {
@@ -963,45 +1210,57 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
           }
         }}
       >
-        <div data-canvas-bg className="relative" style={{ width: canvasWidth, height: canvasHeight, minHeight: "100%" }}>
-          {/* SVG edges */}
-          <svg
-            className="absolute inset-0 pointer-events-none"
-            style={{ width: canvasWidth, height: canvasHeight }}
-          >
+        <div
+          data-canvas-bg
+          className="relative origin-top-left"
+          style={{
+            width: canvasW * zoom,
+            height: canvasH * zoom,
+            minHeight: "100%",
+            transform: `scale(${zoom})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          {/* Actual content at natural scale */}
+          <div style={{ width: canvasW, height: canvasH }}>
+            {/* SVG edges */}
+            <svg className="absolute inset-0 pointer-events-none" style={{ width: canvasW, height: canvasH }}>
+              {edgeElements.map((edge) => (
+                <EdgePath key={edge.id} x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} dashed={edge.dashed} />
+              ))}
+            </svg>
+
+            {/* Add node buttons on edges */}
             {edgeElements.map((edge) => (
-              <EdgePath
-                key={edge.id}
-                x1={edge.x1}
-                y1={edge.y1}
-                x2={edge.x2}
-                y2={edge.y2}
-                dashed={edge.dashed}
+              <AddNodeButton
+                key={`add-${edge.id}`}
+                x={edge.midX}
+                y={edge.midY}
+                onAdd={(type) => addNodeOnEdge(edge.id, type)}
               />
             ))}
-          </svg>
 
-          {/* Add node buttons on edges */}
-          {edgeElements.map((edge) => (
-            <AddNodeButton
-              key={`add-${edge.id}`}
-              x={edge.midX}
-              y={edge.midY}
-              onAdd={(type) => addNodeOnEdge(edge.id, type)}
-            />
-          ))}
-
-          {/* Nodes */}
-          {workflow.nodes.map((node) => (
-            <WorkflowNodeCard
-              key={node.id}
-              node={node}
-              selected={selectedNodeId === node.id}
-              onSelect={() => setSelectedNodeId(node.id)}
-              onDragStart={(e) => handleNodeDragStart(node.id, e)}
-            />
-          ))}
+            {/* Nodes */}
+            {workflow.nodes.map((node) => (
+              <WorkflowNodeCard
+                key={node.id}
+                node={{ ...node, position: { x: node.position.x + offsetX, y: node.position.y + offsetY } }}
+                selected={selectedNodeId === node.id}
+                onSelect={() => setSelectedNodeId(node.id)}
+                onDragStart={(e) => handleNodeDragStart(node.id, e)}
+              />
+            ))}
+          </div>
         </div>
+
+        {/* Canvas toolbar */}
+        <CanvasToolbar
+          onOrganize={handleOrganize}
+          onFitView={handleFitView}
+          zoom={zoom}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+        />
       </div>
 
       {/* Config panel */}

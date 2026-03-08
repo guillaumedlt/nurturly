@@ -87,13 +87,13 @@ export function createDefaultWorkflow(): WorkflowDefinition {
       {
         id: "trigger-1",
         type: "trigger",
-        position: { x: 300, y: 60 },
+        position: { x: 0, y: 60 },
         data: { triggerType: "manual" } as TriggerNodeData,
       },
       {
         id: "end-1",
         type: "end",
-        position: { x: 300, y: 220 },
+        position: { x: 0, y: 232 },
         data: {},
       },
     ],
