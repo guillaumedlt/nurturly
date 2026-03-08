@@ -162,7 +162,7 @@ function FloatingBlockActions({ editor }: { editor: Editor }) {
 
   return (
     <div
-      className="fixed z-40 flex flex-col gap-0.5 animate-in fade-in duration-150"
+      className="fixed z-30 flex flex-col gap-0.5 animate-in fade-in duration-150"
       style={{ top: info.top, left: Math.max(info.left, 4) }}
     >
       <button
@@ -251,8 +251,6 @@ function ColumnControls({ editor }: { editor: Editor }) {
       // Remove columns from the end
       const tr = editor.state.tr;
       let removeCount = currentCount - newCount;
-      // Walk children in reverse to find positions to delete
-      let offset = info.blockPos + 1;
       const childPositions: { from: number; to: number }[] = [];
       node.forEach((child, childOffset) => {
         childPositions.push({
@@ -278,7 +276,7 @@ function ColumnControls({ editor }: { editor: Editor }) {
 
   return (
     <div
-      className="fixed z-50 flex items-center gap-0.5 rounded-full border border-border bg-background p-0.5 shadow-sm animate-in fade-in duration-150"
+      className="fixed z-40 flex items-center gap-0.5 rounded-full border border-border bg-background p-0.5 shadow-sm animate-in fade-in duration-150"
       style={{ top: Math.max(info.top, 4), left: info.left, transform: "translateX(-50%)" }}
     >
       {([1, 2, 3, 4] as const).map((c) => {

@@ -46,7 +46,7 @@ export function SectionBlockView({ node, updateAttributes, selected }: ReactNode
         {/* Controls panel */}
         {showControls && (
           <div
-            className="absolute -top-2 right-2 z-20 w-56 translate-y-[-100%] rounded-xl border border-border bg-background p-3 shadow-xl"
+            className="absolute -top-2 right-2 z-40 w-56 translate-y-[-100%] rounded-xl border border-border bg-background p-3 shadow-xl"
             contentEditable={false}
           >
             {/* Background color */}

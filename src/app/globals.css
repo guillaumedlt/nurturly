@@ -187,32 +187,18 @@
   text-decoration: underline;
 }
 
-.tiptap p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  float: left;
-  color: var(--muted-foreground);
-  opacity: 0.5;
-  pointer-events: none;
-  height: 0;
-}
-
 .tiptap .is-empty::before {
   content: attr(data-placeholder);
   float: left;
   color: var(--muted-foreground);
-  opacity: 0.5;
+  opacity: 0.4;
   pointer-events: none;
   height: 0;
+  font-style: normal;
 }
 
 .tiptap span[data-node-view-wrapper] {
   display: inline;
-}
-
-.tiptap .ProseMirror-selectednode {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: 4px;
 }
 
 /* Section block content area */
@@ -250,11 +236,11 @@
 }
 
 /* Block node hover feedback */
-.tiptap [data-node-view-wrapper]:not([data-node-view-wrapper=""] span[data-node-view-wrapper]) {
+.tiptap [data-node-view-wrapper]:not(span[data-node-view-wrapper]) {
   transition: box-shadow 0.15s ease;
 }
 
-/* Smooth selection highlight for blocks */
+/* Selection highlight for blocks */
 .tiptap .ProseMirror-selectednode {
   outline: 2px solid var(--ring);
   outline-offset: 3px;

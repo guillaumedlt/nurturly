@@ -42,7 +42,7 @@ export function ButtonBlockView({ node, updateAttributes, selected }: ReactNodeV
         {/* Edit controls */}
         {editing && selected && (
           <div
-            className="mt-2 flex flex-col gap-3 rounded-xl border border-border bg-background p-4 text-left shadow-xl"
+            className="relative z-40 mt-2 flex flex-col gap-3 rounded-xl border border-border bg-background p-4 text-left shadow-xl"
             contentEditable={false}
           >
             <div className="flex items-center gap-2">
