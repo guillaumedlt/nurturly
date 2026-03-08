@@ -246,3 +246,30 @@
 .tiptap [data-column-cell]:focus-within {
   border-color: var(--ring);
 }
+
+/* Block node hover feedback */
+.tiptap [data-node-view-wrapper]:not([data-node-view-wrapper=""] span[data-node-view-wrapper]) {
+  transition: box-shadow 0.15s ease;
+}
+
+/* Smooth selection highlight for blocks */
+.tiptap .ProseMirror-selectednode {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 6px;
+  transition: outline-offset 0.15s ease;
+}
+
+/* Editor content area shadow */
+.email-editor-content {
+  transition: box-shadow 0.2s ease;
+}
+
+.email-editor-content:focus-within {
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+/* Smooth dropcursor */
+.ProseMirror-dropcursor {
+  transition: top 0.1s ease;
+}

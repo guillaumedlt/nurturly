@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Save, Eye, Pencil, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Eye, Pencil, Loader2, Send } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback } from "react";
 
@@ -13,6 +13,7 @@ interface EditorTopBarProps {
   saving: boolean;
   lastSaved: Date | null;
   hasUnsavedChanges?: boolean;
+  onSendTest?: () => void;
 }
 
 export function EditorTopBar({
@@ -24,6 +25,7 @@ export function EditorTopBar({
   saving,
   lastSaved,
   hasUnsavedChanges,
+  onSendTest,
 }: EditorTopBarProps) {
   const [editingName, setEditingName] = useState(false);
 
@@ -82,7 +84,7 @@ export function EditorTopBar({
         </span>
       </div>
 
-      {/* Right: Mode toggle + Save */}
+      {/* Right: Actions */}
       <div className="flex items-center gap-2">
         {/* Edit / Preview toggle */}
         <div className="flex items-center rounded-lg border border-border p-0.5">
@@ -111,6 +113,18 @@ export function EditorTopBar({
             Preview
           </button>
         </div>
+
+        {/* Send test */}
+        {onSendTest && (
+          <button
+            type="button"
+            onClick={onSendTest}
+            className="flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Send className="h-3 w-3" />
+            Send test
+          </button>
+        )}
 
         {/* Save */}
         <button

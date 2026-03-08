@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import ImageExt from "@tiptap/extension-image";
@@ -9,8 +9,22 @@ import Color from "@tiptap/extension-color";
 import TextStyle from "@tiptap/extension-text-style";
 import Placeholder from "@tiptap/extension-placeholder";
 import UnderlineExt from "@tiptap/extension-underline";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
+import {
+  Undo2,
+  Redo2,
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Plus,
+  Copy,
+  Trash2,
+} from "lucide-react";
 
 import { VariableNode, AVAILABLE_VARIABLES } from "@/lib/editor/extensions/variable-node";
 import { ButtonBlock } from "@/lib/editor/extensions/button-block";
@@ -39,6 +53,136 @@ import { EditorBubbleMenu } from "./bubble-menu";
 import { VariablePicker } from "./variable-picker";
 import { ImageInsertModal } from "./image-insert-modal";
 
+/* ─── Toolbar button ─── */
+function ToolbarBtn({
+  onClick,
+  active,
+  disabled,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-25 ${
+        active
+          ? "bg-foreground text-background"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ─── Floating block actions (delete / duplicate) ─── */
+function FloatingBlockActions({ editor }: { editor: Editor }) {
+  const [info, setInfo] = useState<{
+    visible: boolean;
+    top: number;
+    left: number;
+    from: number;
+    size: number;
+  }>({ visible: false, top: 0, left: 0, from: 0, size: 0 });
+
+  useEffect(() => {
+    const update = () => {
+      const { selection } = editor.state;
+      let blockFrom: number | null = null;
+      let blockSize = 0;
+
+      if (selection instanceof NodeSelection) {
+        blockFrom = selection.from;
+        blockSize = selection.node.nodeSize;
+      } else if (selection.$from.depth >= 1) {
+        const node = selection.$from.node(1);
+        if (node && !["paragraph", "doc"].includes(node.type.name)) {
+          blockFrom = selection.$from.before(1);
+          blockSize = node.nodeSize;
+        }
+      }
+
+      if (blockFrom !== null && blockSize > 0) {
+        const dom = editor.view.nodeDOM(blockFrom);
+        if (dom instanceof HTMLElement) {
+          const rect = dom.getBoundingClientRect();
+          setInfo({
+            visible: true,
+            top: rect.top,
+            left: rect.left - 34,
+            from: blockFrom,
+            size: blockSize,
+          });
+          return;
+        }
+      }
+      setInfo((prev) => ({ ...prev, visible: false }));
+    };
+
+    editor.on("selectionUpdate", update);
+    editor.on("transaction", update);
+    return () => {
+      editor.off("selectionUpdate", update);
+      editor.off("transaction", update);
+    };
+  }, [editor]);
+
+  if (!info.visible) return null;
+
+  const deleteBlock = () => {
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: info.from, to: info.from + info.size })
+      .run();
+  };
+
+  const duplicateBlock = () => {
+    const node = editor.state.doc.nodeAt(info.from);
+    if (node) {
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(info.from + info.size, node.toJSON())
+        .run();
+    }
+  };
+
+  return (
+    <div
+      className="fixed z-40 flex flex-col gap-0.5 animate-in fade-in duration-150"
+      style={{ top: info.top, left: Math.max(info.left, 4) }}
+    >
+      <button
+        type="button"
+        onClick={duplicateBlock}
+        title="Duplicate block"
+        className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        onClick={deleteBlock}
+        title="Delete block"
+        className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-destructive/10 hover:text-destructive"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+/* ─── Main editor ─── */
 interface EmailEditorProps {
   content: string; // JSON string
   onUpdate: (json: string) => void;
@@ -52,7 +196,9 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashItems, setSlashItems] = useState<SlashCommandItem[]>([]);
   const [slashPos, setSlashPos] = useState({ top: 0, left: 0 });
-  const slashCommandRef = useRef<{ onKeyDown: (props: { event: KeyboardEvent }) => boolean } | null>(null);
+  const slashCommandRef = useRef<{
+    onKeyDown: (props: { event: KeyboardEvent }) => boolean;
+  } | null>(null);
   const slashRangeRef = useRef<any>(null);
 
   // Image modal state
@@ -66,22 +212,29 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
   const [varSuggestIndex, setVarSuggestIndex] = useState(0);
   const varBraceStartRef = useRef<number | null>(null);
 
-  const filteredVars = AVAILABLE_VARIABLES.filter((v) =>
-    v.name.toLowerCase().includes(varSuggestQuery.toLowerCase()) ||
-    v.label.toLowerCase().includes(varSuggestQuery.toLowerCase())
+  // Force re-render on transaction for toolbar state
+  const [, setTick] = useState(0);
+
+  const filteredVars = AVAILABLE_VARIABLES.filter(
+    (v) =>
+      v.name.toLowerCase().includes(varSuggestQuery.toLowerCase()) ||
+      v.label.toLowerCase().includes(varSuggestQuery.toLowerCase())
   );
 
-  const handleImageInsert = useCallback((editorInstance: any, range: any) => {
-    imageRangeRef.current = range;
-    editorInstance.chain().focus().deleteRange(range).run();
-    setImageModalOpen(true);
-  }, []);
+  const handleImageInsert = useCallback(
+    (editorInstance: any, range: any) => {
+      imageRangeRef.current = range;
+      editorInstance.chain().focus().deleteRange(range).run();
+      setImageModalOpen(true);
+    },
+    []
+  );
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        horizontalRule: false, // replaced by DividerBlock
+        horizontalRule: false,
         dropcursor: { color: "#d4d4d4", width: 2 },
       }),
       TextAlign.configure({
@@ -147,7 +300,9 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
       SlashCommand.configure({
         suggestion: {
           items: ({ query }: { query: string }) => {
-            return getSlashCommandItems({ onImageInsert: handleImageInsert }).filter((item) =>
+            return getSlashCommandItems({
+              onImageInsert: handleImageInsert,
+            }).filter((item) =>
               item.title.toLowerCase().includes(query.toLowerCase())
             );
           },
@@ -196,22 +351,26 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
         return { type: "doc", content: [{ type: "paragraph" }] };
       }
     })(),
-    onUpdate: ({ editor }) => {
-      onUpdateRef.current(JSON.stringify(editor.getJSON()));
+    onUpdate: ({ editor: ed }) => {
+      onUpdateRef.current(JSON.stringify(ed.getJSON()));
 
       // Handle { variable suggestion
       if (varBraceStartRef.current !== null) {
-        const curPos = editor.state.selection.from;
+        const curPos = ed.state.selection.from;
         const start = varBraceStartRef.current;
         if (curPos <= start) {
           setVarSuggestOpen(false);
           varBraceStartRef.current = null;
         } else {
-          const text = editor.state.doc.textBetween(start, curPos, "");
+          const text = ed.state.doc.textBetween(start, curPos, "");
           setVarSuggestQuery(text);
           setVarSuggestIndex(0);
         }
       }
+    },
+    onTransaction: () => {
+      // Force toolbar re-render on every transaction
+      setTick((t) => t + 1);
     },
     editorProps: {
       attributes: {
@@ -242,12 +401,18 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
           }
           if (event.key === "ArrowDown") {
             event.preventDefault();
-            setVarSuggestIndex((prev) => (prev + 1) % Math.max(filteredVars.length, 1));
+            setVarSuggestIndex(
+              (prev) => (prev + 1) % Math.max(filteredVars.length, 1)
+            );
             return true;
           }
           if (event.key === "ArrowUp") {
             event.preventDefault();
-            setVarSuggestIndex((prev) => (prev + Math.max(filteredVars.length, 1) - 1) % Math.max(filteredVars.length, 1));
+            setVarSuggestIndex(
+              (prev) =>
+                (prev + Math.max(filteredVars.length, 1) - 1) %
+                Math.max(filteredVars.length, 1)
+            );
             return true;
           }
           if (event.key === "Enter" || event.key === "Tab") {
@@ -261,7 +426,10 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
           if (event.key === "Backspace") {
             if (editor) {
               const curPos = editor.state.selection.from;
-              if (varBraceStartRef.current !== null && curPos <= varBraceStartRef.current + 1) {
+              if (
+                varBraceStartRef.current !== null &&
+                curPos <= varBraceStartRef.current + 1
+              ) {
                 setVarSuggestOpen(false);
                 varBraceStartRef.current = null;
               }
@@ -312,24 +480,109 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
     [editor]
   );
 
+  const addBlockAtEnd = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus("end").insertContent("/").run();
+  }, [editor]);
+
   if (!editor) return null;
 
   return (
     <div className="relative">
-      {/* Toolbar row */}
-      <div className="mb-3 flex items-center gap-2">
+      {/* ─── Toolbar ─── */}
+      <div className="mb-3 flex items-center gap-1">
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().undo().run()}
+            disabled={!editor.can().undo()}
+            title="Undo (⌘Z)"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().redo().run()}
+            disabled={!editor.can().redo()}
+            title="Redo (⌘⇧Z)"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+        </div>
+
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            active={editor.isActive("bold")}
+            title="Bold (⌘B)"
+          >
+            <Bold className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            active={editor.isActive("italic")}
+            title="Italic (⌘I)"
+          >
+            <Italic className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            active={editor.isActive("underline")}
+            title="Underline (⌘U)"
+          >
+            <UnderlineIcon className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+        </div>
+
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().setTextAlign("left").run()}
+            active={editor.isActive({ textAlign: "left" })}
+            title="Align left"
+          >
+            <AlignLeft className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().setTextAlign("center").run()}
+            active={editor.isActive({ textAlign: "center" })}
+            title="Align center"
+          >
+            <AlignCenter className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn
+            onClick={() => editor.chain().focus().setTextAlign("right").run()}
+            active={editor.isActive({ textAlign: "right" })}
+            title="Align right"
+          >
+            <AlignRight className="h-3.5 w-3.5" />
+          </ToolbarBtn>
+        </div>
+
+        <div className="flex-1" />
+
         <VariablePicker editor={editor} />
       </div>
 
-      {/* Editor area */}
-      <div className="email-editor-content rounded-lg border border-border bg-white p-8">
+      {/* ─── Editor area ─── */}
+      <div className="email-editor-content rounded-lg border border-border bg-white p-8 shadow-sm">
         <div className="mx-auto max-w-[600px]">
           <EditorBubbleMenu editor={editor} />
           <EditorContent editor={editor} />
+
+          {/* Add block button at the end */}
+          <button
+            type="button"
+            onClick={addBlockAtEnd}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border py-3 text-[12px] text-muted-foreground/50 transition-all hover:border-muted-foreground/30 hover:text-muted-foreground hover:bg-muted/30"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add block
+          </button>
         </div>
       </div>
 
-      {/* Slash command popup */}
+      {/* ─── Floating block actions ─── */}
+      <FloatingBlockActions editor={editor} />
+
+      {/* ─── Slash command popup ─── */}
       {slashOpen && slashItems.length > 0 && (
         <div
           className="fixed z-50"
@@ -343,7 +596,7 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
         </div>
       )}
 
-      {/* Variable suggestion popup */}
+      {/* ─── Variable suggestion popup ─── */}
       {varSuggestOpen && filteredVars.length > 0 && (
         <div
           className="fixed z-50"
@@ -374,7 +627,7 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
         </div>
       )}
 
-      {/* Image insert modal */}
+      {/* ─── Image insert modal ─── */}
       <ImageInsertModal
         open={imageModalOpen}
         onClose={() => setImageModalOpen(false)}

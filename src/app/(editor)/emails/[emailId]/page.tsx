@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { EmailEditor } from "@/components/editor/email-editor";
 import { EditorTopBar } from "@/components/editor/editor-top-bar";
 import { EditorPreview } from "@/components/editor/editor-preview";
+import { SendTestModal } from "@/components/editor/send-test-modal";
 import { renderEmailHtml } from "@/lib/editor/render-html";
 
 interface EmailData {
@@ -25,6 +26,7 @@ export default function EmailEditorPage() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [sendTestOpen, setSendTestOpen] = useState(false);
 
   // Local state for editing
   const [name, setName] = useState("");
@@ -68,7 +70,6 @@ export default function EmailEditorPage() {
     if (!email) return;
     setSaving(true);
     try {
-      // Generate HTML from current content
       let htmlContent = "";
       try {
         const doc = JSON.parse(contentRef.current);
@@ -143,6 +144,16 @@ export default function EmailEditorPage() {
 
   if (!email) return null;
 
+  const subjectLength = subject.length;
+  const subjectColor =
+    subjectLength === 0
+      ? "text-muted-foreground/40"
+      : subjectLength <= 50
+        ? "text-success"
+        : subjectLength <= 70
+          ? "text-warning"
+          : "text-destructive";
+
   return (
     <div className="flex min-h-dvh flex-col">
       <EditorTopBar
@@ -154,6 +165,7 @@ export default function EmailEditorPage() {
         saving={saving}
         lastSaved={lastSaved}
         hasUnsavedChanges={hasUnsavedChanges}
+        onSendTest={() => setSendTestOpen(true)}
       />
 
       <div className="flex-1 overflow-auto bg-muted/30">
@@ -165,13 +177,18 @@ export default function EmailEditorPage() {
                 <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground w-20 shrink-0">
                   Subject
                 </label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Email subject line"
-                  className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-[14px] outline-none transition-colors focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
-                />
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="Email subject line"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 pr-14 text-[14px] outline-none transition-colors focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                  />
+                  <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono ${subjectColor}`}>
+                    {subjectLength}/60
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground w-20 shrink-0">
@@ -203,6 +220,13 @@ export default function EmailEditorPage() {
           </div>
         )}
       </div>
+
+      {/* Send test modal */}
+      <SendTestModal
+        open={sendTestOpen}
+        onClose={() => setSendTestOpen(false)}
+        emailId={email.id}
+      />
     </div>
   );
 }
