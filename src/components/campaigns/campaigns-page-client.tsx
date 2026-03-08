@@ -15,6 +15,7 @@ interface CampaignRow {
   totalRecipients: number;
   totalSent: number;
   totalOpened: number;
+  scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -125,7 +126,7 @@ export function CampaignsPageClient() {
                   Audience
                 </th>
                 <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground lg:table-cell">
-                  Sent
+                  Send date
                 </th>
                 <th className="w-10" />
               </tr>
@@ -158,8 +159,15 @@ export function CampaignsPageClient() {
                   <td className="hidden px-4 py-2 lg:table-cell">
                     <span className="text-[12px] text-muted-foreground">
                       {campaign.sentAt
-                        ? formatRelativeDate(campaign.sentAt)
-                        : "—"}
+                        ? `Sent ${formatRelativeDate(campaign.sentAt)}`
+                        : campaign.scheduledAt
+                          ? new Date(campaign.scheduledAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—"}
                     </span>
                   </td>
                   <td className="px-2 py-2">

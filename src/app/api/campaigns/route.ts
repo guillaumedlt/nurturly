@@ -22,6 +22,7 @@ export async function GET() {
       totalRecipients: campaigns.totalRecipients,
       totalSent: campaigns.totalSent,
       totalOpened: campaigns.totalOpened,
+      scheduledAt: campaigns.scheduledAt,
       sentAt: campaigns.sentAt,
       createdAt: campaigns.createdAt,
       updatedAt: campaigns.updatedAt,
