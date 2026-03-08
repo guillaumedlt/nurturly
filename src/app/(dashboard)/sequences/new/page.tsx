@@ -1,23 +1,35 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function NewSequencePage() {
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    async function create() {
+      if (creating) return;
+      setCreating(true);
+      try {
+        const res = await fetch("/api/sequences", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Untitled sequence" }),
+        });
+        if (res.ok) {
+          const seq = await res.json();
+          window.location.href = `/sequences/${seq.id}`;
+        }
+      } catch {
+        window.location.href = "/sequences";
+      }
+    }
+    create();
+  }, []);
+
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/sequences"
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-        </Link>
-        <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">New Sequence</h2>
-      </div>
-      <div className="rounded-lg border border-border">
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-[13px] text-muted-foreground">Sequence builder coming soon.</p>
-        </div>
-      </div>
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
     </div>
   );
 }

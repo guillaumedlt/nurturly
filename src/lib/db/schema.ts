@@ -175,6 +175,7 @@ export const sequences = pgTable("sequences", {
   status: sequenceStatusEnum("status").notNull().default("draft"),
   triggerType: text("trigger_type").default("manual"),
   triggerListId: text("trigger_list_id").references(() => lists.id),
+  workflowData: text("workflow_data"),
   totalEnrolled: integer("total_enrolled").default(0),
   totalCompleted: integer("total_completed").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
