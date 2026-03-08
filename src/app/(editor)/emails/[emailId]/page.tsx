@@ -35,6 +35,8 @@ export default function EmailEditorPage() {
   // Track if there are unsaved changes
   const contentRef = useRef(editorContent);
   contentRef.current = editorContent;
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load email
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function EmailEditorPage() {
         setSubject(data.subject);
         setPreheaderText(data.preheaderText || "");
         setEditorContent(data.editorContent);
+        setSavedSnapshot(JSON.stringify({ name: data.name, subject: data.subject, preheaderText: data.preheaderText || "", editorContent: data.editorContent }));
       } catch {
         router.push("/emails");
       } finally {
@@ -86,6 +89,7 @@ export default function EmailEditorPage() {
         }),
       });
       setLastSaved(new Date());
+      setSavedSnapshot(JSON.stringify({ name, subject, preheaderText, editorContent: contentRef.current }));
     } finally {
       setSaving(false);
     }
@@ -102,6 +106,32 @@ export default function EmailEditorPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [save]);
+
+  // Compute unsaved changes
+  const currentSnapshot = JSON.stringify({ name, subject, preheaderText, editorContent });
+  const hasUnsavedChanges = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+
+  // Auto-save with 3s debounce
+  useEffect(() => {
+    if (!hasUnsavedChanges || saving) return;
+    autoSaveTimerRef.current = setTimeout(() => {
+      save();
+    }, 3000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [hasUnsavedChanges, saving, save, currentSnapshot]);
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   if (loading) {
     return (
@@ -123,6 +153,7 @@ export default function EmailEditorPage() {
         onModeChange={setMode}
         saving={saving}
         lastSaved={lastSaved}
+        hasUnsavedChanges={hasUnsavedChanges}
       />
 
       <div className="flex-1 overflow-auto bg-muted/30">

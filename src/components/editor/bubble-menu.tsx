@@ -146,7 +146,24 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
             <div className="mx-0.5 h-4 w-px bg-border" />
 
             {/* Color swatches */}
-            {["#0a0a0a", "#525252", "#a3a3a3"].map((color) => (
+            <button
+              type="button"
+              onClick={() =>
+                editor.chain().focus().unsetColor().run()
+              }
+              className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-accent"
+              title="Reset color"
+            >
+              <div className="h-3 w-3 rounded-full border border-border bg-background relative overflow-hidden">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-[1px] w-full bg-destructive rotate-45" />
+                </div>
+              </div>
+            </button>
+            {[
+              "#0a0a0a", "#525252", "#a3a3a3", "#d4d4d4",
+              "#2563eb", "#16a34a", "#dc2626", "#ea580c", "#7c3aed",
+            ].map((color) => (
               <button
                 key={color}
                 type="button"

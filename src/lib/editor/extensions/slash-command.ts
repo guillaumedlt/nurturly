@@ -36,7 +36,11 @@ export const SlashCommand = Extension.create({
   },
 });
 
-export function getSlashCommandItems(): SlashCommandItem[] {
+export interface SlashCommandOptions {
+  onImageInsert?: (editor: any, range: any) => void;
+}
+
+export function getSlashCommandItems(options?: SlashCommandOptions): SlashCommandItem[] {
   return [
     {
       title: "Heading 1",
@@ -91,9 +95,13 @@ export function getSlashCommandItems(): SlashCommandItem[] {
       description: "Insert an image from URL",
       icon: "image",
       command: ({ editor, range }) => {
-        const url = window.prompt("Image URL:");
-        if (url) {
-          editor.chain().focus().deleteRange(range).setImage({ src: url }).run();
+        if (options?.onImageInsert) {
+          options.onImageInsert(editor, range);
+        } else {
+          const url = window.prompt("Image URL:");
+          if (url) {
+            editor.chain().focus().deleteRange(range).setImage({ src: url }).run();
+          }
         }
       },
     },
@@ -128,6 +136,19 @@ export function getSlashCommandItems(): SlashCommandItem[] {
           .focus()
           .deleteRange(range)
           .insertContent({ type: "spacerBlock", attrs: { height: 32 } })
+          .run();
+      },
+    },
+    {
+      title: "Variable",
+      description: "Insert a dynamic variable",
+      icon: "variable",
+      command: ({ editor, range }) => {
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .insertContent({ type: "variable", attrs: { name: "firstName" } })
           .run();
       },
     },

@@ -12,6 +12,7 @@ interface EditorTopBarProps {
   onModeChange: (mode: "edit" | "preview") => void;
   saving: boolean;
   lastSaved: Date | null;
+  hasUnsavedChanges?: boolean;
 }
 
 export function EditorTopBar({
@@ -22,6 +23,7 @@ export function EditorTopBar({
   onModeChange,
   saving,
   lastSaved,
+  hasUnsavedChanges,
 }: EditorTopBarProps) {
   const [editingName, setEditingName] = useState(false);
 
@@ -63,11 +65,21 @@ export function EditorTopBar({
           </button>
         )}
 
-        {lastSaved && (
-          <span className="text-[11px] text-muted-foreground/60">
-            {saving ? "Saving..." : "Saved"}
-          </span>
-        )}
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
+          {saving ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Saving...
+            </>
+          ) : hasUnsavedChanges ? (
+            <>
+              <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+              Unsaved
+            </>
+          ) : lastSaved ? (
+            "Saved"
+          ) : null}
+        </span>
       </div>
 
       {/* Right: Mode toggle + Save */}

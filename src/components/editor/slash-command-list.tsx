@@ -18,6 +18,7 @@ import {
   MousePointerClick,
   Minus,
   MoveVertical,
+  Braces,
 } from "lucide-react";
 import type { SlashCommandItem } from "@/lib/editor/extensions/slash-command";
 
@@ -32,6 +33,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   button: MousePointerClick,
   divider: Minus,
   spacer: MoveVertical,
+  variable: Braces,
 };
 
 interface SlashCommandListProps {
