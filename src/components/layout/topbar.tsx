@@ -8,7 +8,7 @@ import { LogOut, ChevronRight } from "lucide-react";
 const routeNames: Record<string, string> = {
   "/": "Dashboard",
   "/contacts": "Contacts",
-  "/lists": "Lists",
+  "/lists": "Audiences",
   "/campaigns": "Campaigns",
   "/campaigns/new": "New Campaign",
   "/sequences": "Sequences",
@@ -26,7 +26,7 @@ function getPageTitle(pathname: string): string {
     return "Sequence Analytics";
   if (pathname.startsWith("/sequences/")) return "Edit Sequence";
   if (pathname.startsWith("/contacts/")) return "Contact Detail";
-  if (pathname.startsWith("/lists/")) return "List Detail";
+  if (pathname.startsWith("/lists/")) return "Audience Detail";
   return "Nurturly";
 }
 
@@ -38,7 +38,7 @@ function getBreadcrumb(pathname: string): { parent: string; parentHref: string }
   if (pathname.startsWith("/contacts/") && pathname !== "/contacts")
     return { parent: "Contacts", parentHref: "/contacts" };
   if (pathname.startsWith("/lists/") && pathname !== "/lists")
-    return { parent: "Lists", parentHref: "/lists" };
+    return { parent: "Audiences", parentHref: "/lists" };
   return null;
 }
 

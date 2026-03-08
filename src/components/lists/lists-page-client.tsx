@@ -44,14 +44,14 @@ export function ListsPageClient() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">Lists</h2>
+          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">Audiences</h2>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {lists.length > 0 ? `${lists.length} list${lists.length !== 1 ? "s" : ""}` : "Organize contacts into lists and segments."}
+            {lists.length > 0 ? `${lists.length} audience${lists.length !== 1 ? "s" : ""}` : "Organize contacts into audiences for targeted campaigns."}
           </p>
         </div>
         <Button size="sm" className="h-8 text-[12px]" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Create list
+          Create audience
         </Button>
       </div>
 
@@ -65,9 +65,9 @@ export function ListsPageClient() {
         <div className="rounded-lg border border-border">
           <EmptyState
             icon={ListFilter}
-            title="No lists yet"
-            description="Create a list to group contacts for targeted campaigns and sequences."
-            actionLabel="Create your first list"
+            title="No audiences yet"
+            description="Create an audience to group contacts for targeted campaigns and sequences."
+            actionLabel="Create your first audience"
             onAction={() => setCreateOpen(true)}
           />
         </div>

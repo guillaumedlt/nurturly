@@ -332,7 +332,7 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
       return;
     }
     if (!listId) {
-      alert("Please select an audience list before sending.");
+      alert("Please select an audience before sending.");
       return;
     }
     if (!confirm("Send this campaign now? This action cannot be undone.")) return;
@@ -606,7 +606,7 @@ export function CampaignEditorPage({ campaignId }: CampaignEditorPageProps) {
                   <Dropdown
                     value={listId}
                     onChange={setListId}
-                    placeholder="Select a list..."
+                    placeholder="Select an audience..."
                     options={lists.map((l) => ({
                       value: l.id,
                       label: l.name,

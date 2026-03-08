@@ -44,7 +44,7 @@ export function CreateListDialog({ open, onOpenChange, onCreated }: CreateListDi
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle className="text-[15px]">Create list</DialogTitle>
+          <DialogTitle className="text-[15px]">Create audience</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1.5">
@@ -58,7 +58,7 @@ export function CreateListDialog({ open, onOpenChange, onCreated }: CreateListDi
           {error && <p className="text-[12px] text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" size="sm" className="h-8 text-[12px]" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" size="sm" className="h-8 text-[12px]" disabled={loading}>{loading ? "Creating..." : "Create list"}</Button>
+            <Button type="submit" size="sm" className="h-8 text-[12px]" disabled={loading}>{loading ? "Creating..." : "Create audience"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

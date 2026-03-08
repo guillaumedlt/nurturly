@@ -58,7 +58,7 @@ export function CommandPalette() {
           </CommandItem>
           <CommandItem onSelect={() => navigate("/lists")}>
             <ListFilter className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-[13px]">Lists</span>
+            <span className="text-[13px]">Audiences</span>
           </CommandItem>
           <CommandItem onSelect={() => navigate("/campaigns")}>
             <Send className="mr-2 h-3.5 w-3.5 text-muted-foreground" />

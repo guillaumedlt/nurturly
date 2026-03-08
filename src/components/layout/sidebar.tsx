@@ -21,7 +21,7 @@ import { useState, useEffect } from "react";
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/lists", label: "Lists", icon: ListFilter },
+  { href: "/lists", label: "Audiences", icon: ListFilter },
   { href: "/emails", label: "Emails", icon: Mail },
   { href: "/campaigns", label: "Campaigns", icon: Send },
   { href: "/sequences", label: "Sequences", icon: GitBranch },

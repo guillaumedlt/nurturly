@@ -55,7 +55,7 @@ export default function ListDetailPage() {
   }
 
   if (!list) {
-    return <p className="text-[13px] text-muted-foreground">List not found.</p>;
+    return <p className="text-[13px] text-muted-foreground">Audience not found.</p>;
   }
 
   return (
