@@ -88,44 +88,6 @@ export function ButtonBlockView({ node, updateAttributes, selected }: ReactNodeV
               </div>
             </div>
 
-            {/* Size + Radius + Align */}
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Size</span>
-                <div className="flex gap-0.5">
-                  {(["sm", "md", "lg"] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => updateAttributes({ size: s })}
-                      className={`flex-1 rounded px-2 py-1 text-[10px] font-medium transition-colors ${
-                        size === s ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-accent"
-                      }`}
-                    >
-                      {s.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex-1">
-                <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Corners</span>
-                <div className="flex gap-0.5">
-                  {[4, 6, 12, 24].map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => updateAttributes({ borderRadius: r })}
-                      className={`flex-1 rounded px-2 py-1 text-[10px] font-medium transition-colors ${
-                        borderRadius === r ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-accent"
-                      }`}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
             {/* Alignment */}
             <div>
               <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Align</span>

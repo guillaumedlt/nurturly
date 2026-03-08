@@ -99,10 +99,10 @@ export const SlashCommandList = forwardRef<
   });
 
   return (
-    <div className="z-50 w-60 max-h-80 overflow-y-auto rounded-xl border border-border bg-background p-1.5 shadow-xl">
+    <div className="z-50 w-56 max-h-80 overflow-y-auto rounded-xl border border-border bg-background p-1 shadow-xl">
       {Array.from(categories.entries()).map(([category, { items: catItems, indices }]) => (
         <div key={category}>
-          <div className="px-2.5 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+          <div className="px-2 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
             {category}
           </div>
           {catItems.map((item, i) => {
@@ -114,18 +114,16 @@ export const SlashCommandList = forwardRef<
                 type="button"
                 onClick={() => selectItem(globalIndex)}
                 onMouseEnter={() => setSelectedIndex(globalIndex)}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
                   globalIndex === selectedIndex
                     ? "bg-accent text-foreground"
                     : "text-foreground hover:bg-accent"
                 }`}
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
-                  {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
-                </div>
+                {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                 <div className="min-w-0">
-                  <div className="text-[13px] font-medium">{item.title}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">
+                  <div className="text-[13px] font-medium leading-tight">{item.title}</div>
+                  <div className="text-[10px] text-muted-foreground/70 truncate leading-tight">
                     {item.description}
                   </div>
                 </div>
