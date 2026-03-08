@@ -152,8 +152,12 @@ export function getSlashCommandItems(options?: SlashCommandOptions): SlashComman
       icon: "section",
       category: "Layout",
       command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range)
-          .insertContent({
+        const $from = editor.state.doc.resolve(range.from);
+        const parentStart = $from.before($from.depth);
+        const parentEnd = $from.after($from.depth);
+        editor.chain().focus()
+          .deleteRange({ from: parentStart, to: parentEnd })
+          .insertContentAt(parentStart, {
             type: "sectionBlock",
             attrs: { backgroundColor: "#f5f5f5", paddingTop: 24, paddingBottom: 24, paddingLeft: 24, paddingRight: 24 },
             content: [{ type: "paragraph" }],
@@ -167,8 +171,15 @@ export function getSlashCommandItems(options?: SlashCommandOptions): SlashComman
       icon: "columns2",
       category: "Layout",
       command: ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range)
-          .insertContent({
+        // Delete the entire parent paragraph (not just the slash text)
+        // to avoid leaving an empty paragraph that looks like a 3rd block
+        const $from = editor.state.doc.resolve(range.from);
+        const parentStart = $from.before($from.depth);
+        const parentEnd = $from.after($from.depth);
+
+        editor.chain().focus()
+          .deleteRange({ from: parentStart, to: parentEnd })
+          .insertContentAt(parentStart, {
             type: "columnsBlock",
             attrs: { columns: 2, gap: 16 },
             content: [
