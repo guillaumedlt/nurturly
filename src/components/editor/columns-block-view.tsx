@@ -50,14 +50,10 @@ export function ColumnsBlockView({ node, updateAttributes, selected, editor }: R
           })}
         </div>
 
-        {/* Columns content — flex applied directly via className */}
-        <NodeViewContent
-          className="columns-content"
-          style={{
-            display: "flex",
-            gap: `${gap}px`,
-          }}
-        />
+        {/* Flex wrapper — NodeViewContent uses display:contents to become transparent */}
+        <div className="columns-flex-row" style={{ display: "flex", gap: `${gap}px` }}>
+          <NodeViewContent className="columns-content-passthrough" />
+        </div>
       </div>
     </NodeViewWrapper>
   );

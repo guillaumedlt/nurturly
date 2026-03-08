@@ -215,15 +215,19 @@
   border-radius: 4px;
 }
 
-/* Columns block — flex on any content container inside columns */
-.tiptap [data-columns-block] .columns-content,
-.tiptap [data-columns-block] [data-node-view-content] {
-  display: flex !important;
+/* Columns: NodeViewContent becomes layout-transparent via display:contents */
+.tiptap [data-columns-block] .columns-content-passthrough {
+  display: contents !important;
 }
 
-/* Each child inside columns content takes equal space */
-.tiptap [data-columns-block] .columns-content > *,
-.tiptap [data-columns-block] [data-node-view-content] > * {
+/* Each columnCell wrapper inside the flex row takes equal space */
+.tiptap [data-columns-block] .columns-flex-row > * > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Also target column cells directly as flex children (display:contents makes them so) */
+.tiptap [data-columns-block] .columns-flex-row [data-column-cell] {
   flex: 1;
   min-width: 0;
 }
