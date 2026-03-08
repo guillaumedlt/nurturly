@@ -18,6 +18,14 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Split,
+  Hourglass,
+  Webhook,
+  CornerDownRight,
+  Settings2,
+  X,
+  Target,
+  Globe,
 } from "lucide-react";
 import type {
   WorkflowDefinition,
@@ -29,7 +37,13 @@ import type {
   DelayNodeData,
   ConditionNodeData,
   ActionNodeData,
+  ABSplitNodeData,
+  WaitForEventNodeData,
+  WebhookNodeData,
+  GotoNodeData,
   WorkflowNodeData,
+  GoalCondition,
+  SendTimeWindow,
 } from "@/lib/sequences/types";
 import { NODE_META } from "@/lib/sequences/types";
 
@@ -47,15 +61,23 @@ const NODE_ICONS: Record<WorkflowNodeType, typeof Zap> = {
   delay: Clock,
   condition: GitBranch,
   action: Tag,
+  ab_split: Split,
+  wait_for_event: Hourglass,
+  webhook: Webhook,
+  goto: CornerDownRight,
   end: CircleStop,
 };
 
 /* ─── Add Node Menu Items ─── */
-const ADD_NODE_OPTIONS: { type: WorkflowNodeType; label: string; description: string }[] = [
-  { type: "email", label: "Send Email", description: "Send an email template" },
-  { type: "delay", label: "Wait", description: "Wait for a duration" },
-  { type: "condition", label: "Condition", description: "Branch based on behavior" },
-  { type: "action", label: "Action", description: "Tag, move to list, etc." },
+const ADD_NODE_OPTIONS: { type: WorkflowNodeType; label: string; description: string; category: string }[] = [
+  { type: "email", label: "Send Email", description: "Send an email template", category: "Actions" },
+  { type: "delay", label: "Wait", description: "Wait for a duration", category: "Timing" },
+  { type: "condition", label: "Condition", description: "Branch based on behavior", category: "Logic" },
+  { type: "action", label: "Action", description: "Tag, move to list, etc.", category: "Actions" },
+  { type: "ab_split", label: "A/B Split", description: "Split traffic to test variants", category: "Logic" },
+  { type: "wait_for_event", label: "Wait for Event", description: "Wait until contact acts", category: "Timing" },
+  { type: "webhook", label: "Webhook", description: "Call an external API", category: "Actions" },
+  { type: "goto", label: "Go to", description: "Loop back to a previous step", category: "Logic" },
 ];
 
 /* ─── Utility: generate ID ─── */
@@ -89,7 +111,7 @@ function autoLayoutWorkflow(workflow: WorkflowDefinition): WorkflowDefinition {
     if (!node) return NODE_WIDTH;
 
     const kids = children[nodeId] || [];
-    const isCondition = node.type === "condition";
+    const isBranching = node.type === "condition" || node.type === "ab_split" || node.type === "wait_for_event";
 
     if (kids.length === 0) {
       // Leaf node
@@ -97,11 +119,12 @@ function autoLayoutWorkflow(workflow: WorkflowDefinition): WorkflowDefinition {
       return NODE_WIDTH;
     }
 
-    if (isCondition && kids.length === 2) {
-      // Sort: "yes" on left, "no" on right
+    if (isBranching && kids.length === 2) {
+      // Sort: left branch first (yes/a/default on left, no/b/timeout on right)
+      const leftHandles = ["yes", "a", "default"];
       const sorted = [...kids].sort((a, b) => {
-        if (a.handle === "yes") return -1;
-        if (b.handle === "yes") return 1;
+        if (leftHandles.includes(a.handle || "")) return -1;
+        if (leftHandles.includes(b.handle || "")) return 1;
         return 0;
       });
 
@@ -264,27 +287,35 @@ function AddNodeButton({
         <Plus className="h-3 w-3" />
       </button>
       {open && (
-        <div className="absolute left-1/2 top-8 z-30 w-52 -translate-x-1/2 rounded-lg border border-border bg-background p-1 shadow-lg animate-in fade-in slide-in-from-top-1 duration-150">
-          {ADD_NODE_OPTIONS.map((opt) => {
-            const Icon = NODE_ICONS[opt.type];
+        <div className="absolute left-1/2 top-8 z-30 w-56 -translate-x-1/2 rounded-lg border border-border bg-background p-1 shadow-lg animate-in fade-in slide-in-from-top-1 duration-150">
+          {["Actions", "Timing", "Logic"].map((cat) => {
+            const items = ADD_NODE_OPTIONS.filter((o) => o.category === cat);
             return (
-              <button
-                key={opt.type}
-                type="button"
-                onClick={() => { onAdd(opt.type); setOpen(false); }}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-accent"
-              >
-                <div
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-                  style={{ backgroundColor: NODE_META[opt.type].color + "18", color: NODE_META[opt.type].color }}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <p className="text-[12px] font-medium text-foreground">{opt.label}</p>
-                  <p className="text-[10px] text-muted-foreground">{opt.description}</p>
-                </div>
-              </button>
+              <div key={cat}>
+                <p className="px-2.5 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">{cat}</p>
+                {items.map((opt) => {
+                  const Icon = NODE_ICONS[opt.type];
+                  return (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      onClick={() => { onAdd(opt.type); setOpen(false); }}
+                      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-accent"
+                    >
+                      <div
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+                        style={{ backgroundColor: NODE_META[opt.type].color + "18", color: NODE_META[opt.type].color }}
+                      >
+                        <Icon className="h-3 w-3" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-medium text-foreground">{opt.label}</p>
+                        <p className="truncate text-[10px] text-muted-foreground">{opt.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </div>
@@ -325,6 +356,32 @@ function getNodeSubtitle(node: WorkflowNode): string {
       if (d.actionType === "move_to_list") return d.listName || "Move to audience";
       if (d.actionType === "mark_completed") return "Mark completed";
       return "Configure action";
+    }
+    case "ab_split": {
+      const d = node.data as ABSplitNodeData;
+      return `${d.splitA || 50}% / ${d.splitB || 50}%`;
+    }
+    case "wait_for_event": {
+      const d = node.data as WaitForEventNodeData;
+      const events: Record<string, string> = {
+        email_opened: "Email opened",
+        email_clicked: "Email clicked",
+        link_clicked: "Link clicked",
+        tag_added: "Tag added",
+        list_joined: "Joined list",
+        reply_received: "Reply received",
+      };
+      const label = events[d.eventType] || "Set event";
+      const timeout = d.timeoutDuration ? ` (${d.timeoutDuration}${d.timeoutUnit?.[0] || "d"} timeout)` : "";
+      return label + timeout;
+    }
+    case "webhook": {
+      const d = node.data as WebhookNodeData;
+      return d.description || d.url || "Configure webhook";
+    }
+    case "goto": {
+      const d = node.data as GotoNodeData;
+      return d.targetNodeLabel ? `Go to "${d.targetNodeLabel}"` : "Select target step";
     }
     case "end":
       return "Sequence ends";
@@ -411,12 +468,13 @@ function Dropdown({
 
 /* ─── Node Config Panel ─── */
 function NodeConfigPanel({
-  node, emails, lists, emailNodes, onUpdate, onDelete, onClose,
+  node, emails, lists, emailNodes, allNodes, onUpdate, onDelete, onClose,
 }: {
   node: WorkflowNode;
   emails: { id: string; name: string }[];
   lists: { id: string; name: string }[];
   emailNodes: { id: string; name: string }[];
+  allNodes: WorkflowNode[];
   onUpdate: (data: WorkflowNodeData) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -447,6 +505,10 @@ function NodeConfigPanel({
         {node.type === "delay" && <DelayConfig data={node.data as DelayNodeData} onUpdate={onUpdate} />}
         {node.type === "condition" && <ConditionConfig data={node.data as ConditionNodeData} emailNodes={emailNodes} onUpdate={onUpdate} />}
         {node.type === "action" && <ActionConfig data={node.data as ActionNodeData} lists={lists} onUpdate={onUpdate} />}
+        {node.type === "ab_split" && <ABSplitConfig data={node.data as ABSplitNodeData} onUpdate={onUpdate} />}
+        {node.type === "wait_for_event" && <WaitForEventConfig data={node.data as WaitForEventNodeData} emailNodes={emailNodes} lists={lists} onUpdate={onUpdate} />}
+        {node.type === "webhook" && <WebhookConfig data={node.data as WebhookNodeData} onUpdate={onUpdate} />}
+        {node.type === "goto" && <GotoConfig data={node.data as GotoNodeData} allNodes={allNodes} onUpdate={onUpdate} />}
         {node.type === "end" && <p className="text-[13px] text-muted-foreground">Contacts reaching this node exit the sequence.</p>}
       </div>
 
@@ -719,6 +781,512 @@ function ActionConfig({ data, lists, onUpdate }: {
   );
 }
 
+/* ─── A/B Split Config ─── */
+function ABSplitConfig({ data, onUpdate }: {
+  data: ABSplitNodeData; onUpdate: (d: WorkflowNodeData) => void;
+}) {
+  const presets = [
+    { a: 50, b: 50, label: "50/50" },
+    { a: 70, b: 30, label: "70/30" },
+    { a: 80, b: 20, label: "80/20" },
+    { a: 90, b: 10, label: "90/10" },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Traffic split</label>
+        <div className="flex gap-1">
+          {presets.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => onUpdate({ ...data, splitA: p.a, splitB: p.b })}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                data.splitA === p.a
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex-1">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
+              <span>Path A</span>
+              <span>{data.splitA || 50}%</span>
+            </div>
+            <input
+              type="range"
+              min={10}
+              max={90}
+              value={data.splitA || 50}
+              onChange={(e) => {
+                const a = parseInt(e.target.value);
+                onUpdate({ ...data, splitA: a, splitB: 100 - a });
+              }}
+              className="w-full accent-foreground"
+            />
+          </div>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Path A label</label>
+        <input
+          type="text"
+          value={data.labelA || ""}
+          onChange={(e) => onUpdate({ ...data, labelA: e.target.value })}
+          placeholder="e.g. Short subject line"
+          className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Path B label</label>
+        <input
+          type="text"
+          value={data.labelB || ""}
+          onChange={(e) => onUpdate({ ...data, labelB: e.target.value })}
+          placeholder="e.g. Long subject line"
+          className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+        />
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Contacts will be randomly assigned to Path A or Path B based on the split percentage. Use this to test different email content or timing strategies.
+      </p>
+    </div>
+  );
+}
+
+/* ─── Wait for Event Config ─── */
+function WaitForEventConfig({ data, emailNodes, lists, onUpdate }: {
+  data: WaitForEventNodeData;
+  emailNodes: { id: string; name: string }[];
+  lists: { id: string; name: string }[];
+  onUpdate: (d: WorkflowNodeData) => void;
+}) {
+  const events = [
+    { value: "email_opened", label: "Email was opened" },
+    { value: "email_clicked", label: "Email was clicked" },
+    { value: "link_clicked", label: "Specific link clicked" },
+    { value: "tag_added", label: "Tag was added" },
+    { value: "list_joined", label: "Joined an audience" },
+    { value: "reply_received", label: "Reply received" },
+  ];
+  const timeUnits = [
+    { value: "hours", label: "Hours" },
+    { value: "days", label: "Days" },
+    { value: "weeks", label: "Weeks" },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Wait until</label>
+        <div className="flex flex-col gap-1">
+          {events.map((ev) => (
+            <button
+              key={ev.value}
+              type="button"
+              onClick={() => onUpdate({ ...data, eventType: ev.value as WaitForEventNodeData["eventType"] })}
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-left text-[12px] transition-colors ${
+                data.eventType === ev.value
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+            >
+              {data.eventType === ev.value && <Check className="h-3 w-3" />}
+              {ev.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {(data.eventType === "email_opened" || data.eventType === "email_clicked") && emailNodes.length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-medium text-foreground">Which email?</label>
+          <Dropdown
+            value={data.referenceNodeId || ""}
+            onChange={(v) => {
+              const en = emailNodes.find((e) => e.id === v);
+              onUpdate({ ...data, referenceNodeId: v, referenceEmailName: en?.name });
+            }}
+            options={emailNodes.map((e) => ({ value: e.id, label: e.name }))}
+            placeholder="Select email node..."
+          />
+        </div>
+      )}
+
+      {data.eventType === "link_clicked" && (
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-medium text-foreground">Link URL</label>
+          <input
+            type="text"
+            value={data.linkUrl || ""}
+            onChange={(e) => onUpdate({ ...data, linkUrl: e.target.value })}
+            placeholder="https://..."
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+          />
+        </div>
+      )}
+
+      {data.eventType === "tag_added" && (
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-medium text-foreground">Tag name</label>
+          <input
+            type="text"
+            value={data.tagName || ""}
+            onChange={(e) => onUpdate({ ...data, tagName: e.target.value })}
+            placeholder="e.g. purchased"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+          />
+        </div>
+      )}
+
+      {data.eventType === "list_joined" && (
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-medium text-foreground">Audience</label>
+          <Dropdown
+            value={data.listId || ""}
+            onChange={(v) => {
+              const list = lists.find((l) => l.id === v);
+              onUpdate({ ...data, listId: v, listName: list?.name });
+            }}
+            options={lists.map((l) => ({ value: l.id, label: l.name }))}
+            placeholder="Select audience..."
+            searchable
+          />
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Timeout (if event doesn&apos;t happen)</label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min={1}
+            value={data.timeoutDuration || ""}
+            onChange={(e) => onUpdate({ ...data, timeoutDuration: parseInt(e.target.value) || 0 })}
+            placeholder="3"
+            className="h-9 w-20 rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+          />
+          <div className="flex items-center gap-1">
+            {timeUnits.map((u) => (
+              <button
+                key={u.value}
+                type="button"
+                onClick={() => onUpdate({ ...data, timeoutUnit: u.value as WaitForEventNodeData["timeoutUnit"] })}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  data.timeoutUnit === u.value
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                {u.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        If the event occurs, contacts continue down the <span className="text-cyan-600 font-medium">EVENT</span> path. If the timeout is reached, they go down the <span className="text-amber-600 font-medium">TIMEOUT</span> path.
+      </p>
+    </div>
+  );
+}
+
+/* ─── Webhook Config ─── */
+function WebhookConfig({ data, onUpdate }: {
+  data: WebhookNodeData; onUpdate: (d: WorkflowNodeData) => void;
+}) {
+  const methods = ["GET", "POST", "PUT"] as const;
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Description</label>
+        <input
+          type="text"
+          value={data.description || ""}
+          onChange={(e) => onUpdate({ ...data, description: e.target.value })}
+          placeholder="e.g. Notify CRM"
+          className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Method</label>
+        <div className="flex items-center gap-1">
+          {methods.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onUpdate({ ...data, method: m })}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                data.method === m
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">URL</label>
+        <input
+          type="text"
+          value={data.url || ""}
+          onChange={(e) => onUpdate({ ...data, url: e.target.value })}
+          placeholder="https://api.example.com/webhook"
+          className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Custom headers (JSON)</label>
+        <textarea
+          value={data.headers || ""}
+          onChange={(e) => onUpdate({ ...data, headers: e.target.value })}
+          placeholder='{"Authorization": "Bearer ..."}'
+          rows={3}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-[12px] font-mono outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 resize-none"
+        />
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        The request body will include the contact&apos;s email, name, tags, and custom fields.
+      </p>
+    </div>
+  );
+}
+
+/* ─── Goto Config ─── */
+function GotoConfig({ data, allNodes, onUpdate }: {
+  data: GotoNodeData; allNodes: WorkflowNode[]; onUpdate: (d: WorkflowNodeData) => void;
+}) {
+  const targetOptions = allNodes
+    .filter((n) => n.type !== "end" && n.type !== "trigger" && n.type !== "goto")
+    .map((n) => ({
+      value: n.id,
+      label: `${NODE_META[n.type].label}: ${getNodeSubtitle(n)}`,
+    }));
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Go to step</label>
+        <Dropdown
+          value={data.targetNodeId || ""}
+          onChange={(v) => {
+            const target = allNodes.find((n) => n.id === v);
+            onUpdate({ ...data, targetNodeId: v, targetNodeLabel: target ? NODE_META[target.type].label : undefined });
+          }}
+          options={targetOptions}
+          placeholder="Select a step to jump to..."
+          searchable
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium text-foreground">Max loops per contact</label>
+        <input
+          type="number"
+          min={1}
+          max={100}
+          value={data.maxLoops || 3}
+          onChange={(e) => onUpdate({ ...data, maxLoops: parseInt(e.target.value) || 3 })}
+          className="h-9 w-20 rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          After this many loops, the contact exits the sequence to prevent infinite loops.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Sequence Settings Panel ─── */
+function SequenceSettingsPanel({
+  goals, sendTimeWindow, onUpdateGoals, onUpdateSendTime, onClose,
+}: {
+  goals: GoalCondition[];
+  sendTimeWindow: SendTimeWindow;
+  onUpdateGoals: (goals: GoalCondition[]) => void;
+  onUpdateSendTime: (stw: SendTimeWindow) => void;
+  onClose: () => void;
+}) {
+  const goalTypes = [
+    { value: "tag_added", label: "Tag added" },
+    { value: "list_joined", label: "Joined audience" },
+    { value: "email_replied", label: "Email replied" },
+    { value: "link_clicked", label: "Link clicked" },
+  ];
+
+  const timezones = [
+    "UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+    "Europe/London", "Europe/Paris", "Europe/Berlin", "Asia/Tokyo", "Asia/Shanghai",
+    "Australia/Sydney",
+  ];
+
+  return (
+    <div className="flex h-full flex-col border-l border-border bg-background">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
+            <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+          <span className="text-[13px] font-medium text-foreground">Sequence Settings</span>
+        </div>
+        <button type="button" onClick={onClose} className="text-[12px] text-muted-foreground hover:text-foreground">
+          Done
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* ── Goals ── */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Target className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[12px] font-semibold text-foreground">Goal Conditions</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            When a contact meets any goal, they automatically exit the sequence. Use this for conversion events.
+          </p>
+
+          {goals.map((goal, i) => (
+            <div key={i} className="rounded-lg border border-border p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Dropdown
+                  value={goal.type}
+                  onChange={(v) => {
+                    const updated = [...goals];
+                    updated[i] = { ...goal, type: v as GoalCondition["type"] };
+                    onUpdateGoals(updated);
+                  }}
+                  options={goalTypes.map((g) => ({ value: g.value, label: g.label }))}
+                  placeholder="Select goal..."
+                />
+                <button
+                  type="button"
+                  onClick={() => onUpdateGoals(goals.filter((_, j) => j !== i))}
+                  className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+              {goal.type === "tag_added" && (
+                <input
+                  type="text"
+                  value={goal.tagName || ""}
+                  onChange={(e) => {
+                    const updated = [...goals];
+                    updated[i] = { ...goal, tagName: e.target.value };
+                    onUpdateGoals(updated);
+                  }}
+                  placeholder="Tag name..."
+                  className="h-8 w-full rounded-md border border-input bg-background px-3 text-[12px] outline-none focus:border-ring"
+                />
+              )}
+              {goal.type === "link_clicked" && (
+                <input
+                  type="text"
+                  value={goal.linkUrl || ""}
+                  onChange={(e) => {
+                    const updated = [...goals];
+                    updated[i] = { ...goal, linkUrl: e.target.value };
+                    onUpdateGoals(updated);
+                  }}
+                  placeholder="https://..."
+                  className="h-8 w-full rounded-md border border-input bg-background px-3 text-[12px] outline-none focus:border-ring"
+                />
+              )}
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => onUpdateGoals([...goals, { type: "tag_added" }])}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-2 text-[12px] text-muted-foreground transition-colors hover:border-foreground hover:text-foreground"
+          >
+            <Plus className="h-3 w-3" />
+            Add goal
+          </button>
+        </div>
+
+        {/* ── Send time window ── */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[12px] font-semibold text-foreground">Send Time Window</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Only send emails during specific hours. Emails scheduled outside this window will be held until the next available time.
+          </p>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={sendTimeWindow.enabled}
+              onChange={(e) => onUpdateSendTime({ ...sendTimeWindow, enabled: e.target.checked })}
+              className="rounded accent-foreground"
+            />
+            <span className="text-[12px] text-foreground">Enable send window</span>
+          </label>
+
+          {sendTimeWindow.enabled && (
+            <div className="space-y-3 pl-1">
+              <div className="flex items-center gap-2">
+                <div className="space-y-1">
+                  <label className="text-[11px] text-muted-foreground">From</label>
+                  <select
+                    value={sendTimeWindow.startHour}
+                    onChange={(e) => onUpdateSendTime({ ...sendTimeWindow, startHour: parseInt(e.target.value) })}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-[12px] outline-none"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{`${i.toString().padStart(2, "0")}:00`}</option>
+                    ))}
+                  </select>
+                </div>
+                <span className="mt-4 text-[12px] text-muted-foreground">to</span>
+                <div className="space-y-1">
+                  <label className="text-[11px] text-muted-foreground">To</label>
+                  <select
+                    value={sendTimeWindow.endHour}
+                    onChange={(e) => onUpdateSendTime({ ...sendTimeWindow, endHour: parseInt(e.target.value) })}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-[12px] outline-none"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{`${i.toString().padStart(2, "0")}:00`}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] text-muted-foreground">Timezone</label>
+                <Dropdown
+                  value={sendTimeWindow.timezone}
+                  onChange={(v) => onUpdateSendTime({ ...sendTimeWindow, timezone: v })}
+                  options={timezones.map((tz) => ({ value: tz, label: tz.replace(/_/g, " ") }))}
+                  placeholder="Select timezone..."
+                  searchable
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sendTimeWindow.skipWeekends}
+                  onChange={(e) => onUpdateSendTime({ ...sendTimeWindow, skipWeekends: e.target.checked })}
+                  className="rounded accent-foreground"
+                />
+                <span className="text-[12px] text-foreground">Skip weekends</span>
+              </label>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Workflow Node Component ─── */
 function WorkflowNodeCard({
   node, selected, onSelect, onDragStart,
@@ -732,7 +1300,8 @@ function WorkflowNodeCard({
   const Icon = NODE_ICONS[node.type];
   const subtitle = getNodeSubtitle(node);
   const isCondition = node.type === "condition";
-  const height = isCondition ? CONDITION_HEIGHT : NODE_HEIGHT;
+  const isBranching = isCondition || node.type === "ab_split" || node.type === "wait_for_event";
+  const height = isBranching ? CONDITION_HEIGHT : NODE_HEIGHT;
 
   return (
     <div
@@ -776,7 +1345,7 @@ function WorkflowNodeCard({
           <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
         </div>
 
-        {/* Condition branch labels */}
+        {/* Branch labels */}
         {isCondition && (
           <>
             <div className="absolute -bottom-5 left-[25%] -translate-x-1/2 rounded-full bg-green-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-green-600">
@@ -787,6 +1356,26 @@ function WorkflowNodeCard({
             </div>
           </>
         )}
+        {node.type === "ab_split" && (
+          <>
+            <div className="absolute -bottom-5 left-[25%] -translate-x-1/2 rounded-full bg-orange-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-orange-600">
+              A ({(node.data as ABSplitNodeData).splitA || 50}%)
+            </div>
+            <div className="absolute -bottom-5 left-[75%] -translate-x-1/2 rounded-full bg-orange-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-orange-600">
+              B ({(node.data as ABSplitNodeData).splitB || 50}%)
+            </div>
+          </>
+        )}
+        {node.type === "wait_for_event" && (
+          <>
+            <div className="absolute -bottom-5 left-[25%] -translate-x-1/2 rounded-full bg-cyan-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-600">
+              EVENT
+            </div>
+            <div className="absolute -bottom-5 left-[75%] -translate-x-1/2 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-600">
+              TIMEOUT
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -794,13 +1383,14 @@ function WorkflowNodeCard({
 
 /* ─── Floating Canvas Toolbar ─── */
 function CanvasToolbar({
-  onOrganize, onFitView, zoom, onZoomIn, onZoomOut,
+  onOrganize, onFitView, zoom, onZoomIn, onZoomOut, onSettings,
 }: {
   onOrganize: () => void;
   onFitView: () => void;
   zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onSettings: () => void;
 }) {
   return (
     <div className="absolute bottom-4 left-4 z-30 flex items-center gap-1 rounded-lg border border-border bg-background p-1 shadow-sm">
@@ -842,6 +1432,16 @@ function CanvasToolbar({
       >
         <Maximize2 className="h-3.5 w-3.5" />
       </button>
+      <div className="mx-0.5 h-4 w-px bg-border" />
+      <button
+        type="button"
+        onClick={onSettings}
+        title="Sequence settings"
+        className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <Settings2 className="h-3.5 w-3.5" />
+        Settings
+      </button>
     </div>
   );
 }
@@ -856,6 +1456,7 @@ interface WorkflowBuilderProps {
 
 export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowBuilderProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [zoom, setZoom] = useState(1);
   const canvasRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
@@ -1055,6 +1656,10 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         case "delay": data = { duration: 1, unit: "days" } as DelayNodeData; break;
         case "condition": data = { conditionType: "email_opened" } as ConditionNodeData; break;
         case "action": data = { actionType: "add_tag" } as ActionNodeData; break;
+        case "ab_split": data = { splitA: 50, splitB: 50 } as ABSplitNodeData; break;
+        case "wait_for_event": data = { eventType: "email_opened", timeoutDuration: 3, timeoutUnit: "days" } as WaitForEventNodeData; break;
+        case "webhook": data = { method: "POST" } as WebhookNodeData; break;
+        case "goto": data = { maxLoops: 3 } as GotoNodeData; break;
         default: data = {}; break;
       }
 
@@ -1085,6 +1690,38 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
             { id: genId("e"), source: edge.source, target: newId, sourceHandle: edge.sourceHandle },
             { id: genId("e"), source: newId, target: edge.target, sourceHandle: "yes" },
             { id: genId("e"), source: newId, target: endId, sourceHandle: "no" },
+          ]);
+      } else if (type === "ab_split") {
+        const endId = genId("end");
+        const endNode: WorkflowNode = {
+          id: endId, type: "end",
+          position: { x: midX + H_GAP / 2, y: midY + shiftAmount },
+          data: {},
+        };
+        updatedNodes.push(endNode);
+
+        newEdges = workflow.edges
+          .filter((e) => e.id !== edgeId)
+          .concat([
+            { id: genId("e"), source: edge.source, target: newId, sourceHandle: edge.sourceHandle },
+            { id: genId("e"), source: newId, target: edge.target, sourceHandle: "a" },
+            { id: genId("e"), source: newId, target: endId, sourceHandle: "b" },
+          ]);
+      } else if (type === "wait_for_event") {
+        const endId = genId("end");
+        const endNode: WorkflowNode = {
+          id: endId, type: "end",
+          position: { x: midX + H_GAP / 2, y: midY + shiftAmount },
+          data: {},
+        };
+        updatedNodes.push(endNode);
+
+        newEdges = workflow.edges
+          .filter((e) => e.id !== edgeId)
+          .concat([
+            { id: genId("e"), source: edge.source, target: newId, sourceHandle: edge.sourceHandle },
+            { id: genId("e"), source: newId, target: edge.target, sourceHandle: "default" },
+            { id: genId("e"), source: newId, target: endId, sourceHandle: "timeout" },
           ]);
       } else {
         newEdges = workflow.edges
@@ -1122,7 +1759,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       }
 
       let nodesToRemove = [nodeId];
-      if (node.type === "condition") {
+      if (node.type === "condition" || node.type === "ab_split" || node.type === "wait_for_event") {
         for (const oe of outgoingEdges) {
           const targetNode = workflow.nodes.find((n) => n.id === oe.target);
           if (targetNode?.type === "end") {
@@ -1169,14 +1806,18 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       const target = workflow.nodes.find((n) => n.id === edge.target);
       if (!source || !target) continue;
 
-      const isCondition = source.type === "condition";
-      const sourceH = isCondition ? CONDITION_HEIGHT : NODE_HEIGHT;
+      const isBranching = source.type === "condition" || source.type === "ab_split" || source.type === "wait_for_event";
+      const sourceH = isBranching ? CONDITION_HEIGHT : NODE_HEIGHT;
 
       let x1 = source.position.x + offsetX;
-      if (isCondition && edge.sourceHandle === "yes") {
-        x1 = source.position.x + offsetX - NODE_WIDTH / 4;
-      } else if (isCondition && edge.sourceHandle === "no") {
-        x1 = source.position.x + offsetX + NODE_WIDTH / 4;
+      if (isBranching) {
+        const isLeft = edge.sourceHandle === "yes" || edge.sourceHandle === "a" || edge.sourceHandle === "default";
+        const isRight = edge.sourceHandle === "no" || edge.sourceHandle === "b" || edge.sourceHandle === "timeout";
+        if (isLeft) {
+          x1 = source.position.x + offsetX - NODE_WIDTH / 4;
+        } else if (isRight) {
+          x1 = source.position.x + offsetX + NODE_WIDTH / 4;
+        }
       }
 
       const y1 = source.position.y + offsetY + sourceH / 2;
@@ -1188,7 +1829,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         id: edge.id, x1, y1, x2, y2,
         midX: (x1 + x2) / 2,
         midY: (y1 + y2) / 2,
-        dashed: edge.sourceHandle === "no",
+        dashed: edge.sourceHandle === "no" || edge.sourceHandle === "b" || edge.sourceHandle === "timeout",
       });
     }
     return result;
@@ -1260,20 +1901,35 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
           zoom={zoom}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
+          onSettings={() => { setShowSettings(!showSettings); setSelectedNodeId(null); }}
         />
       </div>
 
       {/* Config panel */}
-      {selectedNode && (
+      {selectedNode && !showSettings && (
         <div className="w-[320px] shrink-0">
           <NodeConfigPanel
             node={selectedNode}
             emails={emails}
             lists={lists}
             emailNodes={emailNodes}
+            allNodes={workflow.nodes}
             onUpdate={updateNodeData}
             onDelete={() => deleteNode(selectedNode.id)}
             onClose={() => setSelectedNodeId(null)}
+          />
+        </div>
+      )}
+
+      {/* Settings panel */}
+      {showSettings && (
+        <div className="w-[320px] shrink-0">
+          <SequenceSettingsPanel
+            goals={workflow.goals || []}
+            sendTimeWindow={workflow.sendTimeWindow || { enabled: false, startHour: 9, endHour: 17, timezone: "UTC", skipWeekends: false }}
+            onUpdateGoals={(goals) => onChange({ ...workflow, goals })}
+            onUpdateSendTime={(sendTimeWindow) => onChange({ ...workflow, sendTimeWindow })}
+            onClose={() => setShowSettings(false)}
           />
         </div>
       )}

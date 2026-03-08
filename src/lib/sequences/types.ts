@@ -6,6 +6,10 @@ export type WorkflowNodeType =
   | "delay"
   | "condition"
   | "action"
+  | "ab_split"
+  | "wait_for_event"
+  | "webhook"
+  | "goto"
   | "end";
 
 export interface WorkflowNodePosition {
@@ -46,12 +50,48 @@ export interface ActionNodeData {
   listName?: string;
 }
 
+export interface ABSplitNodeData {
+  splitA: number; // percentage for path A (0-100)
+  splitB: number; // percentage for path B
+  labelA?: string;
+  labelB?: string;
+}
+
+export interface WaitForEventNodeData {
+  eventType: "email_opened" | "email_clicked" | "link_clicked" | "tag_added" | "list_joined" | "reply_received";
+  referenceNodeId?: string;
+  referenceEmailName?: string;
+  tagName?: string;
+  listId?: string;
+  listName?: string;
+  linkUrl?: string;
+  timeoutDuration: number;
+  timeoutUnit: "hours" | "days" | "weeks";
+}
+
+export interface WebhookNodeData {
+  url?: string;
+  method: "GET" | "POST" | "PUT";
+  headers?: string; // JSON string
+  description?: string;
+}
+
+export interface GotoNodeData {
+  targetNodeId?: string;
+  targetNodeLabel?: string;
+  maxLoops: number; // prevent infinite loops
+}
+
 export type WorkflowNodeData =
   | TriggerNodeData
   | EmailNodeData
   | DelayNodeData
   | ConditionNodeData
   | ActionNodeData
+  | ABSplitNodeData
+  | WaitForEventNodeData
+  | WebhookNodeData
+  | GotoNodeData
   | Record<string, never>; // for "end" type
 
 // ── Node ──
@@ -69,14 +109,32 @@ export interface WorkflowEdge {
   id: string;
   source: string;
   target: string;
-  sourceHandle?: "yes" | "no" | "default"; // for condition branches
+  sourceHandle?: "yes" | "no" | "default" | "a" | "b" | "timeout"; // for condition/split/wait branches
 }
 
 // ── Full Workflow Definition ──
 
+export interface GoalCondition {
+  type: "tag_added" | "list_joined" | "email_replied" | "link_clicked";
+  tagName?: string;
+  listId?: string;
+  listName?: string;
+  linkUrl?: string;
+}
+
+export interface SendTimeWindow {
+  enabled: boolean;
+  startHour: number; // 0-23
+  endHour: number; // 0-23
+  timezone: string; // e.g. "Europe/Paris"
+  skipWeekends: boolean;
+}
+
 export interface WorkflowDefinition {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
+  goals?: GoalCondition[];
+  sendTimeWindow?: SendTimeWindow;
 }
 
 // ── Default workflow for new sequences ──
@@ -111,5 +169,9 @@ export const NODE_META: Record<WorkflowNodeType, { label: string; color: string 
   delay: { label: "Wait", color: "#f59e0b" },
   condition: { label: "Condition", color: "#8b5cf6" },
   action: { label: "Action", color: "#ec4899" },
+  ab_split: { label: "A/B Split", color: "#f97316" },
+  wait_for_event: { label: "Wait for Event", color: "#06b6d4" },
+  webhook: { label: "Webhook", color: "#64748b" },
+  goto: { label: "Go to", color: "#a855f7" },
   end: { label: "End", color: "#6b7280" },
 };
