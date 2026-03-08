@@ -15,9 +15,20 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 import { VariableNode, AVAILABLE_VARIABLES } from "@/lib/editor/extensions/variable-node";
 import { ButtonBlock } from "@/lib/editor/extensions/button-block";
 import { SpacerBlock } from "@/lib/editor/extensions/spacer-block";
+import { SectionBlock } from "@/lib/editor/extensions/section-block";
+import { ColumnsBlock, ColumnCell } from "@/lib/editor/extensions/columns-block";
+import { SocialBlock } from "@/lib/editor/extensions/social-block";
+import { DividerBlock } from "@/lib/editor/extensions/divider-block";
+import { FontSize } from "@/lib/editor/extensions/font-size";
+
 import { ButtonBlockView } from "./button-block-view";
 import { SpacerBlockView } from "./spacer-block-view";
 import { VariableNodeView } from "./variable-node-view";
+import { SectionBlockView } from "./section-block-view";
+import { ColumnsBlockView } from "./columns-block-view";
+import { SocialBlockView } from "./social-block-view";
+import { DividerBlockView } from "./divider-block-view";
+
 import {
   SlashCommand,
   getSlashCommandItems,
@@ -70,7 +81,7 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        horizontalRule: {},
+        horizontalRule: false, // replaced by DividerBlock
         dropcursor: { color: "#d4d4d4", width: 2 },
       }),
       TextAlign.configure({
@@ -88,12 +99,14 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
       }),
       Color,
       TextStyle,
+      FontSize,
       UnderlineExt,
       Placeholder.configure({
         placeholder: ({ node }) => {
           if (node.type.name === "heading") return "Heading";
           return 'Type "/" for blocks, "{" for variables...';
         },
+        includeChildren: true,
       }),
       VariableNode.extend({
         addNodeView() {
@@ -108,6 +121,27 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
       SpacerBlock.extend({
         addNodeView() {
           return ReactNodeViewRenderer(SpacerBlockView);
+        },
+      }),
+      SectionBlock.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(SectionBlockView);
+        },
+      }),
+      ColumnsBlock.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(ColumnsBlockView);
+        },
+      }),
+      ColumnCell,
+      SocialBlock.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(SocialBlockView);
+        },
+      }),
+      DividerBlock.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(DividerBlockView);
         },
       }),
       SlashCommand.configure({
@@ -186,15 +220,12 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
       handleKeyDown: (_view, event) => {
         // Handle { trigger for variable suggestion
         if (event.key === "{" && !varSuggestOpen && !slashOpen) {
-          // We'll set state after the character is inserted
           setTimeout(() => {
             if (!editor) return;
             const pos = editor.state.selection.from;
             varBraceStartRef.current = pos;
             setVarSuggestQuery("");
             setVarSuggestIndex(0);
-
-            // Get cursor position for popup
             const coords = editor.view.coordsAtPos(pos);
             setVarSuggestPos({ top: coords.bottom + 4, left: coords.left });
             setVarSuggestOpen(true);
@@ -228,7 +259,6 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
             return true;
           }
           if (event.key === "Backspace") {
-            // Check if we'd delete past the opening brace
             if (editor) {
               const curPos = editor.state.selection.from;
               if (varBraceStartRef.current !== null && curPos <= varBraceStartRef.current + 1) {
@@ -248,7 +278,7 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
   const insertVariableFromSuggestion = useCallback(
     (name: string) => {
       if (!editor || varBraceStartRef.current === null) return;
-      const from = varBraceStartRef.current - 1; // include the `{` character
+      const from = varBraceStartRef.current - 1;
       const to = editor.state.selection.from;
       editor
         .chain()
@@ -313,7 +343,7 @@ export function EmailEditor({ content, onUpdate }: EmailEditorProps) {
         </div>
       )}
 
-      {/* Variable suggestion popup (triggered by `{`) */}
+      {/* Variable suggestion popup */}
       {varSuggestOpen && filteredVars.length > 0 && (
         <div
           className="fixed z-50"

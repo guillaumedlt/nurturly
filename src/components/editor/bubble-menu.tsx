@@ -9,8 +9,22 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  ChevronDown,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+
+const FONT_SIZES = [
+  { label: "Small", value: "13px" },
+  { label: "Normal", value: "15px" },
+  { label: "Medium", value: "18px" },
+  { label: "Large", value: "22px" },
+  { label: "XL", value: "28px" },
+];
+
+const COLORS = [
+  "#0a0a0a", "#525252", "#a3a3a3", "#d4d4d4",
+  "#2563eb", "#16a34a", "#dc2626", "#ea580c", "#7c3aed",
+];
 
 interface EditorBubbleMenuProps {
   editor: Editor;
@@ -18,6 +32,7 @@ interface EditorBubbleMenuProps {
 
 export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [showFontSize, setShowFontSize] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
 
   const setLink = useCallback(() => {
@@ -44,6 +59,9 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       setShowLinkInput(true);
     }
   }, [editor]);
+
+  const currentFontSize = editor.getAttributes("textStyle")?.fontSize || "15px";
+  const currentSizeLabel = FONT_SIZES.find((s) => s.value === currentFontSize)?.label || "Normal";
 
   return (
     <TiptapBubbleMenu
@@ -81,6 +99,47 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
           </div>
         ) : (
           <>
+            {/* Font size dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowFontSize(!showFontSize)}
+                className="flex h-7 items-center gap-0.5 rounded px-1.5 text-[11px] text-foreground transition-colors hover:bg-accent"
+                title="Font size"
+              >
+                {currentSizeLabel}
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </button>
+              {showFontSize && (
+                <div className="absolute top-full left-0 z-50 mt-1 w-28 rounded-lg border border-border bg-background p-0.5 shadow-lg">
+                  {FONT_SIZES.map((s) => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => {
+                        if (s.value === "15px") {
+                          editor.chain().focus().unsetFontSize().run();
+                        } else {
+                          editor.chain().focus().setFontSize(s.value).run();
+                        }
+                        setShowFontSize(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-[12px] transition-colors ${
+                        currentFontSize === s.value
+                          ? "bg-accent font-medium"
+                          : "hover:bg-accent"
+                      }`}
+                    >
+                      <span>{s.label}</span>
+                      <span className="text-[10px] text-muted-foreground">{s.value}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mx-0.5 h-4 w-px bg-border" />
+
             <ToolbarButton
               onClick={() => editor.chain().focus().toggleBold().run()}
               active={editor.isActive("bold")}
@@ -116,27 +175,21 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
             <div className="mx-0.5 h-4 w-px bg-border" />
 
             <ToolbarButton
-              onClick={() =>
-                editor.chain().focus().setTextAlign("left").run()
-              }
+              onClick={() => editor.chain().focus().setTextAlign("left").run()}
               active={editor.isActive({ textAlign: "left" })}
               title="Align left"
             >
               <AlignLeft className="h-3.5 w-3.5" />
             </ToolbarButton>
             <ToolbarButton
-              onClick={() =>
-                editor.chain().focus().setTextAlign("center").run()
-              }
+              onClick={() => editor.chain().focus().setTextAlign("center").run()}
               active={editor.isActive({ textAlign: "center" })}
               title="Align center"
             >
               <AlignCenter className="h-3.5 w-3.5" />
             </ToolbarButton>
             <ToolbarButton
-              onClick={() =>
-                editor.chain().focus().setTextAlign("right").run()
-              }
+              onClick={() => editor.chain().focus().setTextAlign("right").run()}
               active={editor.isActive({ textAlign: "right" })}
               title="Align right"
             >
@@ -148,9 +201,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
             {/* Color swatches */}
             <button
               type="button"
-              onClick={() =>
-                editor.chain().focus().unsetColor().run()
-              }
+              onClick={() => editor.chain().focus().unsetColor().run()}
               className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-accent"
               title="Reset color"
             >
@@ -160,16 +211,11 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
                 </div>
               </div>
             </button>
-            {[
-              "#0a0a0a", "#525252", "#a3a3a3", "#d4d4d4",
-              "#2563eb", "#16a34a", "#dc2626", "#ea580c", "#7c3aed",
-            ].map((color) => (
+            {COLORS.map((color) => (
               <button
                 key={color}
                 type="button"
-                onClick={() =>
-                  editor.chain().focus().setColor(color).run()
-                }
+                onClick={() => editor.chain().focus().setColor(color).run()}
                 className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-accent"
                 title={`Color ${color}`}
               >

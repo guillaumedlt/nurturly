@@ -19,6 +19,10 @@ import {
   Minus,
   MoveVertical,
   Braces,
+  SquareDashedBottom,
+  Columns2,
+  Columns3,
+  Share2,
 } from "lucide-react";
 import type { SlashCommandItem } from "@/lib/editor/extensions/slash-command";
 
@@ -34,6 +38,10 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   divider: Minus,
   spacer: MoveVertical,
   variable: Braces,
+  section: SquareDashedBottom,
+  columns2: Columns2,
+  columns3: Columns3,
+  social: Share2,
 };
 
 interface SlashCommandListProps {
@@ -79,34 +87,53 @@ export const SlashCommandList = forwardRef<
 
   if (items.length === 0) return null;
 
+  // Group items by category
+  const categories = new Map<string, { items: SlashCommandItem[]; indices: number[] }>();
+  items.forEach((item, index) => {
+    const cat = item.category || "Other";
+    if (!categories.has(cat)) {
+      categories.set(cat, { items: [], indices: [] });
+    }
+    categories.get(cat)!.items.push(item);
+    categories.get(cat)!.indices.push(index);
+  });
+
   return (
-    <div className="z-50 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
-      {items.map((item, index) => {
-        const Icon = ICONS[item.icon];
-        return (
-          <button
-            key={item.title}
-            type="button"
-            onClick={() => selectItem(index)}
-            onMouseEnter={() => setSelectedIndex(index)}
-            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors ${
-              index === selectedIndex
-                ? "bg-accent text-foreground"
-                : "text-foreground hover:bg-accent"
-            }`}
-          >
-            {Icon && (
-              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-            )}
-            <div className="min-w-0">
-              <div className="text-[13px] font-medium">{item.title}</div>
-              <div className="text-[11px] text-muted-foreground truncate">
-                {item.description}
-              </div>
-            </div>
-          </button>
-        );
-      })}
+    <div className="z-50 w-60 max-h-80 overflow-y-auto rounded-xl border border-border bg-background p-1.5 shadow-xl">
+      {Array.from(categories.entries()).map(([category, { items: catItems, indices }]) => (
+        <div key={category}>
+          <div className="px-2.5 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+            {category}
+          </div>
+          {catItems.map((item, i) => {
+            const globalIndex = indices[i];
+            const Icon = ICONS[item.icon];
+            return (
+              <button
+                key={item.title}
+                type="button"
+                onClick={() => selectItem(globalIndex)}
+                onMouseEnter={() => setSelectedIndex(globalIndex)}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                  globalIndex === selectedIndex
+                    ? "bg-accent text-foreground"
+                    : "text-foreground hover:bg-accent"
+                }`}
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted">
+                  {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-medium">{item.title}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">
+                    {item.description}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 });

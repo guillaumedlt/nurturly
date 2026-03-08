@@ -214,3 +214,30 @@
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* Column cells — equal flex children */
+.tiptap div[data-node-view-wrapper] > div > div[data-node-view-content] > div[data-column-cell] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Section block content area */
+.tiptap [data-section-block] [data-node-view-content] {
+  min-height: 32px;
+}
+
+/* Column cell editable area */
+.tiptap [data-column-cell] {
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  padding: 4px;
+  transition: border-color 0.15s;
+}
+
+.tiptap [data-column-cell]:hover {
+  border-color: var(--border);
+}
+
+.tiptap [data-column-cell]:focus-within {
+  border-color: var(--ring);
+}

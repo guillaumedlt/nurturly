@@ -11,6 +11,10 @@ export const ButtonBlock = Node.create({
       text: { default: "Click here" },
       href: { default: "#" },
       align: { default: "center" },
+      bgColor: { default: "#0a0a0a" },
+      textColor: { default: "#ffffff" },
+      borderRadius: { default: 6 },
+      size: { default: "md" }, // sm, md, lg
     };
   },
 
@@ -19,7 +23,9 @@ export const ButtonBlock = Node.create({
   },
 
   renderHTML({ node, HTMLAttributes }) {
-    const align = node.attrs.align || "center";
+    const { align, bgColor, textColor, borderRadius, size } = node.attrs;
+    const padding = size === "sm" ? "8px 16px" : size === "lg" ? "14px 32px" : "10px 24px";
+    const fontSize = size === "sm" ? "12px" : size === "lg" ? "16px" : "14px";
     return [
       "div",
       mergeAttributes(HTMLAttributes, {
@@ -30,8 +36,7 @@ export const ButtonBlock = Node.create({
         "a",
         {
           href: node.attrs.href,
-          style:
-            "display: inline-block; padding: 10px 24px; background: #0a0a0a; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;",
+          style: `display: inline-block; padding: ${padding}; background: ${bgColor}; color: ${textColor}; text-decoration: none; border-radius: ${borderRadius}px; font-size: ${fontSize}; font-weight: 500;`,
         },
         node.attrs.text,
       ],

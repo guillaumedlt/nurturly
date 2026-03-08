@@ -23,6 +23,17 @@ const BASE_STYLES = {
   color: "#1a1a1a",
 };
 
+const SOCIAL_ICONS: Record<string, { label: string; color: string }> = {
+  twitter: { label: "𝕏", color: "#000000" },
+  linkedin: { label: "in", color: "#0A66C2" },
+  instagram: { label: "IG", color: "#E4405F" },
+  facebook: { label: "f", color: "#1877F2" },
+  youtube: { label: "▶", color: "#FF0000" },
+  tiktok: { label: "♪", color: "#000000" },
+  github: { label: "GH", color: "#181717" },
+  website: { label: "🌐", color: "#525252" },
+};
+
 function renderMarks(text: string, marks?: TiptapMark[]): string {
   if (!marks || marks.length === 0) return escapeHtml(text);
 
@@ -48,6 +59,7 @@ function renderMarks(text: string, marks?: TiptapMark[]): string {
       case "textStyle": {
         const styles: string[] = [];
         if (mark.attrs?.color) styles.push(`color: ${mark.attrs.color}`);
+        if (mark.attrs?.fontSize) styles.push(`font-size: ${mark.attrs.fontSize}`);
         if (styles.length > 0) {
           result = `<span style="${styles.join("; ")}">${result}</span>`;
         }
@@ -67,7 +79,7 @@ function renderNode(node: TiptapNode): string {
     case "paragraph": {
       const align = (node.attrs?.textAlign as string) || "left";
       const content = (node.content || []).map(renderNode).join("") || "&nbsp;";
-      return `<p style="margin: 0 0 12px 0; ${BASE_STYLES.fontFamily ? `font-family: ${BASE_STYLES.fontFamily};` : ""} font-size: ${BASE_STYLES.fontSize}; line-height: ${BASE_STYLES.lineHeight}; color: ${BASE_STYLES.color}; text-align: ${align};">${content}</p>`;
+      return `<p style="margin: 0 0 12px 0; font-family: ${BASE_STYLES.fontFamily}; font-size: ${BASE_STYLES.fontSize}; line-height: ${BASE_STYLES.lineHeight}; color: ${BASE_STYLES.color}; text-align: ${align};">${content}</p>`;
     }
 
     case "heading": {
@@ -117,17 +129,24 @@ function renderNode(node: TiptapNode): string {
       const text = (node.attrs?.text as string) || "Click here";
       const href = (node.attrs?.href as string) || "#";
       const align = (node.attrs?.align as string) || "center";
-      // Table-based button for Outlook compatibility
+      const bgColor = (node.attrs?.bgColor as string) || "#0a0a0a";
+      const textColor = (node.attrs?.textColor as string) || "#ffffff";
+      const borderRadius = (node.attrs?.borderRadius as number) || 6;
+      const size = (node.attrs?.size as string) || "md";
+      const padding = size === "sm" ? "8px 16px" : size === "lg" ? "14px 32px" : "10px 24px";
+      const fontSize = size === "sm" ? "12px" : size === "lg" ? "16px" : "14px";
+      const border = bgColor === "#ffffff" ? "border: 1px solid #e5e5e5;" : "";
+
       return `
 <div style="text-align: ${align}; padding: 8px 0;">
   <!--[if mso]>
-  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeAttr(href)}" style="height:40px;v-text-anchor:middle;width:200px;" arcsize="15%" strokecolor="#0a0a0a" fillcolor="#0a0a0a">
+  <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeAttr(href)}" style="height:40px;v-text-anchor:middle;width:200px;" arcsize="${Math.round((borderRadius / 40) * 100)}%" strokecolor="${bgColor}" fillcolor="${bgColor}">
     <w:anchorlock/>
-    <center style="color:#ffffff;font-family:sans-serif;font-size:14px;font-weight:bold;">${escapeHtml(text)}</center>
+    <center style="color:${textColor};font-family:sans-serif;font-size:${fontSize};font-weight:bold;">${escapeHtml(text)}</center>
   </v:roundrect>
   <![endif]-->
   <!--[if !mso]><!-->
-  <a href="${escapeAttr(href)}" target="_blank" style="display: inline-block; padding: 10px 24px; background-color: #0a0a0a; color: #ffffff; text-decoration: none; border-radius: 6px; font-family: ${BASE_STYLES.fontFamily}; font-size: 14px; font-weight: 500;">
+  <a href="${escapeAttr(href)}" target="_blank" style="display: inline-block; padding: ${padding}; background-color: ${bgColor}; color: ${textColor}; text-decoration: none; border-radius: ${borderRadius}px; font-family: ${BASE_STYLES.fontFamily}; font-size: ${fontSize}; font-weight: 500; ${border}">
     ${escapeHtml(text)}
   </a>
   <!--<![endif]-->
@@ -144,8 +163,67 @@ function renderNode(node: TiptapNode): string {
       return `{{${name}}}`;
     }
 
+    case "sectionBlock": {
+      const bg = (node.attrs?.backgroundColor as string) || "#ffffff";
+      const pt = (node.attrs?.paddingTop as number) || 24;
+      const pb = (node.attrs?.paddingBottom as number) || 24;
+      const pl = (node.attrs?.paddingLeft as number) || 24;
+      const pr = (node.attrs?.paddingRight as number) || 24;
+      const br = (node.attrs?.borderRadius as number) || 0;
+      const content = (node.content || []).map(renderNode).join("");
+      return `<div style="background-color: ${bg}; padding: ${pt}px ${pr}px ${pb}px ${pl}px; border-radius: ${br}px; margin: 0 0 12px 0;">${content}</div>`;
+    }
+
+    case "columnsBlock": {
+      const gap = (node.attrs?.gap as number) || 16;
+      const cells = node.content || [];
+      const cellWidth = Math.floor(100 / cells.length);
+
+      let html = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 0 0 12px 0;"><tr>`;
+      cells.forEach((cell, i) => {
+        const content = renderNode(cell);
+        const paddingLeft = i > 0 ? `padding-left: ${gap / 2}px;` : "";
+        const paddingRight = i < cells.length - 1 ? `padding-right: ${gap / 2}px;` : "";
+        html += `<td style="width: ${cellWidth}%; vertical-align: top; ${paddingLeft} ${paddingRight}">${content}</td>`;
+      });
+      html += `</tr></table>`;
+      return html;
+    }
+
+    case "columnCell": {
+      return (node.content || []).map(renderNode).join("");
+    }
+
+    case "dividerBlock": {
+      const color = (node.attrs?.color as string) || "#e5e5e5";
+      const thickness = (node.attrs?.thickness as number) || 1;
+      const style = (node.attrs?.style as string) || "solid";
+      const width = (node.attrs?.width as number) || 100;
+      return `<div style="padding: 12px 0; text-align: center;"><hr style="border: none; border-top: ${thickness}px ${style} ${color}; width: ${width}%; margin: 0 auto;" /></div>`;
+    }
+
+    case "socialBlock": {
+      const links = (node.attrs?.links as Array<{ platform: string; url: string }>) || [];
+      const align = (node.attrs?.align as string) || "center";
+      const iconStyle = (node.attrs?.iconStyle as string) || "filled";
+
+      let html = `<div style="text-align: ${align}; padding: 16px 0;">`;
+      links.forEach((link, i) => {
+        const info = SOCIAL_ICONS[link.platform] || { label: "?", color: "#525252" };
+        const url = link.url || "#";
+        const margin = i > 0 ? "margin-left: 8px;" : "";
+
+        if (iconStyle === "filled") {
+          html += `<a href="${escapeAttr(url)}" target="_blank" style="display: inline-block; width: 36px; height: 36px; line-height: 36px; text-align: center; background-color: ${info.color}; color: #ffffff; border-radius: 50%; text-decoration: none; font-size: 14px; font-weight: bold; font-family: sans-serif; ${margin}">${info.label}</a>`;
+        } else {
+          html += `<a href="${escapeAttr(url)}" target="_blank" style="display: inline-block; width: 34px; height: 34px; line-height: 32px; text-align: center; border: 2px solid ${info.color}; color: ${info.color}; border-radius: 50%; text-decoration: none; font-size: 14px; font-weight: bold; font-family: sans-serif; ${margin}">${info.label}</a>`;
+        }
+      });
+      html += `</div>`;
+      return html;
+    }
+
     default:
-      // Unknown node — render children if any
       return (node.content || []).map(renderNode).join("");
   }
 }
@@ -187,15 +265,21 @@ export function renderEmailHtml(
     </xml>
   </noscript>
   <![endif]-->
+  <style type="text/css">
+    @media only screen and (max-width: 480px) {
+      .email-container { width: 100% !important; padding: 16px !important; }
+      .email-content { padding: 24px 16px !important; }
+    }
+  </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f5f5f5; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
   ${preheader}
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f5f5f5;">
     <tr>
-      <td align="center" style="padding: 40px 16px;">
+      <td align="center" class="email-container" style="padding: 40px 16px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 8px;">
           <tr>
-            <td style="padding: 40px 32px;">
+            <td class="email-content" style="padding: 40px 32px;">
               ${body}
             </td>
           </tr>
