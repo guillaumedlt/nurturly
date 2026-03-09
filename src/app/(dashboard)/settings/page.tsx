@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, GripVertical, Settings, Tag, ChevronDown } from "lucide-react";
+import { Plus, Trash2, GripVertical, Settings, Tag, Lock, Mail, User, Building2, Briefcase, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -190,19 +190,57 @@ export default function SettingsPage() {
             )}
           </div>
 
-          {/* Property list */}
+          {/* Built-in properties */}
+          <div>
+            <h4 className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Default properties</h4>
+            <div className="rounded-xl border border-border bg-background divide-y divide-border">
+              {[
+                { name: "email", label: "Email", type: "Email", icon: Mail, required: true },
+                { name: "first_name", label: "First name", type: "Text", icon: User, required: false },
+                { name: "last_name", label: "Last name", type: "Text", icon: User, required: false },
+                { name: "company", label: "Company", type: "Text", icon: Building2, required: false },
+                { name: "job_title", label: "Job title", type: "Text", icon: Briefcase, required: false },
+                { name: "phone", label: "Phone", type: "Phone", icon: Phone, required: false },
+              ].map((prop) => {
+                const Icon = prop.icon;
+                return (
+                  <div key={prop.name} className="flex items-center gap-3 px-5 py-3">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-foreground">{prop.label}</span>
+                        <Badge variant="outline" className="text-[10px] font-normal">{prop.type}</Badge>
+                        {prop.required && (
+                          <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">Required</span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">Internal name: {prop.name}</span>
+                    </div>
+                    <div className="flex h-7 w-7 items-center justify-center text-muted-foreground/30" title="Built-in property">
+                      <Lock className="h-3 w-3" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Custom property list */}
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
             </div>
           ) : properties.length === 0 ? (
-            <div className="rounded-xl border border-border bg-background">
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Tag className="h-8 w-8 text-muted-foreground/30" strokeWidth={1.5} />
-                <p className="mt-3 text-[13px] font-medium text-foreground">No custom properties</p>
-                <p className="mt-1 text-[12px] text-muted-foreground max-w-[280px]">
-                  Create custom properties to store additional data on your contacts — like lifecycle stage, company size, or lead score.
-                </p>
+            <div>
+              <h4 className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Custom properties</h4>
+              <div className="rounded-xl border border-border bg-background">
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Tag className="h-7 w-7 text-muted-foreground/30" strokeWidth={1.5} />
+                  <p className="mt-3 text-[13px] font-medium text-foreground">No custom properties yet</p>
+                  <p className="mt-1 text-[12px] text-muted-foreground max-w-[280px]">
+                    Add custom properties above to track additional data — like lifecycle stage, company size, or lead score.
+                  </p>
+                </div>
               </div>
             </div>
           ) : (
@@ -217,6 +255,9 @@ export default function SettingsPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-[13px] font-medium text-foreground">{prop.label}</span>
                           <Badge variant="outline" className="text-[10px] font-normal">{PROPERTY_TYPES.find((t) => t.value === prop.type)?.label || prop.type}</Badge>
+                          {prop.required && (
+                            <span className="text-[10px] font-medium text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">Required</span>
+                          )}
                         </div>
                         <span className="text-[11px] text-muted-foreground">Internal name: {prop.name}</span>
                         {prop.options && prop.options.length > 0 && (
