@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
       company: body.company?.trim() || null,
       jobTitle: body.jobTitle?.trim() || null,
       phone: body.phone?.trim() || null,
+      companyId: body.companyId || null,
       tags: body.tags || null,
       properties: body.properties ? JSON.stringify(body.properties) : null,
       source: body.source || "manual",

@@ -19,6 +19,7 @@ interface ContactDetail {
   firstName: string | null;
   lastName: string | null;
   company: string | null;
+  companyId: string | null;
   jobTitle: string | null;
   phone: string | null;
   tags: string[] | null;
@@ -30,6 +31,13 @@ interface ContactDetail {
   lists: { id: string; name: string; type: string; addedAt: string }[];
   activity: { id: string; eventType: string; campaignId: string | null; sequenceId: string | null; occurredAt: string; metadata: string | null }[];
   enrollments: { id: string; sequenceId: string; sequenceName: string; status: string; currentStep: number; enrolledAt: string; completedAt: string | null }[];
+}
+
+interface CompanyInfo {
+  id: string;
+  name: string;
+  domain: string | null;
+  industry: string | null;
 }
 
 const EVENT_ICONS: Record<string, { icon: typeof Send; color: string }> = {
@@ -46,6 +54,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
   const { contactId } = use(params);
   const router = useRouter();
   const [contact, setContact] = useState<ContactDetail | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
   const [properties, setProperties] = useState<ContactProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
@@ -60,7 +69,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
       fetch("/api/contact-properties"),
     ]);
     if (contactRes.ok) {
-      setContact(await contactRes.json());
+      const contactData = await contactRes.json();
+      setContact(contactData);
+      // Fetch associated company if linked
+      if (contactData.companyId) {
+        fetch(`/api/companies/${contactData.companyId}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => { if (data) setCompanyInfo({ id: data.id, name: data.name, domain: data.domain, industry: data.industry }); });
+      } else {
+        setCompanyInfo(null);
+      }
     }
     if (propsRes.ok) {
       const data = await propsRes.json();
@@ -245,6 +263,30 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
               />
             </div>
           </div>
+
+          {/* Associated company */}
+          {companyInfo && (
+            <Link href={`/companies/${companyInfo.id}`} className="block rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted/30">
+              <span className="mb-2 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Company</span>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-[11px] font-semibold text-muted-foreground">
+                  {companyInfo.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-foreground truncate">{companyInfo.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    {companyInfo.domain && <span className="text-[11px] text-muted-foreground">{companyInfo.domain}</span>}
+                    {companyInfo.industry && (
+                      <>
+                        {companyInfo.domain && <span className="text-[11px] text-muted-foreground/30">·</span>}
+                        <span className="text-[11px] text-muted-foreground">{companyInfo.industry}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Link>
+          )}
 
           {/* Tags */}
           <div className="rounded-xl border border-border bg-background p-5">

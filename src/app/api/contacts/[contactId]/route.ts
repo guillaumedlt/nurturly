@@ -89,6 +89,7 @@ export async function PATCH(
   if (body.company !== undefined) updates.company = body.company?.trim() || null;
   if (body.jobTitle !== undefined) updates.jobTitle = body.jobTitle?.trim() || null;
   if (body.phone !== undefined) updates.phone = body.phone?.trim() || null;
+  if (body.companyId !== undefined) updates.companyId = body.companyId || null;
   if (body.tags !== undefined) updates.tags = body.tags;
   if (body.subscribed !== undefined) updates.subscribed = body.subscribed;
   if (body.properties !== undefined) updates.properties = JSON.stringify(body.properties);

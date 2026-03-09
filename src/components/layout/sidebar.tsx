@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
+  Building2,
   ListFilter,
   Mail,
   Send,
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/contacts", label: "Contacts", icon: Users },
+  { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/lists", label: "Audiences", icon: ListFilter },
   { href: "/emails", label: "Emails", icon: Mail },
   { href: "/transactional", label: "Transactional", icon: Zap },

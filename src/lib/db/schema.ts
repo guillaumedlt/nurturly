@@ -106,6 +106,7 @@ export const contacts = pgTable("contacts", {
   company: text("company"),
   jobTitle: text("job_title"),
   phone: text("phone"),
+  companyId: text("company_id").references(() => companies.id, { onDelete: "set null" }),
   tags: text("tags").array(),
   properties: text("properties"),
   subscribed: boolean("subscribed").default(true).notNull(),
@@ -114,6 +115,44 @@ export const contacts = pgTable("contacts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("contacts_user_email_idx").on(table.userId, table.email),
+]);
+
+// ── Companies ──
+
+export const companies = pgTable("companies", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  domain: text("domain"),
+  industry: text("industry"),
+  size: text("size"),
+  phone: text("phone"),
+  website: text("website"),
+  address: text("address"),
+  description: text("description"),
+  properties: text("properties"), // JSON custom properties
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("companies_user_domain_idx").on(table.userId, table.domain),
+  index("companies_user_name_idx").on(table.userId),
+]);
+
+// ── Company Properties (custom fields) ──
+
+export const companyProperties = pgTable("company_properties", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  label: text("label").notNull(),
+  type: propertyTypeEnum("type").notNull().default("text"),
+  groupName: text("group_name").notNull().default("Custom"),
+  options: text("options"),
+  required: boolean("required").default(false).notNull(),
+  position: integer("position").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("company_prop_user_name_idx").on(table.userId, table.name),
 ]);
 
 // ── Contact Properties (custom fields) ──
