@@ -1862,9 +1862,12 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       name: (n.data as EmailNodeData).emailName || "Untitled email",
     }));
 
-  // ─── Compute canvas-relative positions (center workflow in viewport) ───
+  // ─── Compute canvas-relative positions ───
+  // Make canvas much larger than content so we can always scroll to center
+  const CANVAS_PADDING = 2000; // extra space around content for free scrolling
+
   const { offsetX, offsetY, canvasW, canvasH } = useMemo(() => {
-    if (workflow.nodes.length === 0) return { offsetX: 0, offsetY: 0, canvasW: 800, canvasH: 500 };
+    if (workflow.nodes.length === 0) return { offsetX: CANVAS_PADDING, offsetY: CANVAS_PADDING, canvasW: CANVAS_PADDING * 2, canvasH: CANVAS_PADDING * 2 };
 
     const xs = workflow.nodes.map((n) => n.position.x);
     const ys = workflow.nodes.map((n) => n.position.y);
@@ -1873,14 +1876,16 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
     const minY = Math.min(...ys) - CONDITION_HEIGHT / 2;
     const maxY = Math.max(...ys) + CONDITION_HEIGHT / 2;
 
-    const contentW = maxX - minX + 200;
-    const contentH = maxY - minY + 200;
-    const w = Math.max(contentW, 1200);
-    const h = Math.max(contentH, 800);
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
 
-    // Offset to center the content in canvas
-    const ox = (w - contentW) / 2 - minX + 100;
-    const oy = -minY + 100;
+    // Canvas = content + padding on all sides
+    const w = contentW + CANVAS_PADDING * 2;
+    const h = contentH + CANVAS_PADDING * 2;
+
+    // Offset places nodes so that content starts at CANVAS_PADDING from left/top
+    const ox = CANVAS_PADDING - minX;
+    const oy = CANVAS_PADDING - minY;
 
     return { offsetX: ox, offsetY: oy, canvasW: w, canvasH: h };
   }, [workflow.nodes]);
@@ -1889,12 +1894,15 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
   useEffect(() => {
     if (initializedRef.current || !canvasRef.current || workflow.nodes.length === 0) return;
     initializedRef.current = true;
+    centerOnTrigger();
+  }, [workflow.nodes, offsetX, offsetY, zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const centerOnTrigger = useCallback(() => {
     const container = canvasRef.current;
+    if (!container) return;
     const trigger = workflow.nodes.find((n) => n.type === "trigger");
     if (!trigger) return;
 
-    // Center the trigger node in the viewport
     const triggerScreenX = (trigger.position.x + offsetX) * zoom;
     const triggerScreenY = (trigger.position.y + offsetY) * zoom;
 
@@ -1908,27 +1916,9 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
   const handleOrganize = useCallback(() => {
     const organized = autoLayoutWorkflow(workflow);
     pushHistory(organized);
-
-    // Re-center after organize
-    requestAnimationFrame(() => {
-      if (!canvasRef.current) return;
-      const container = canvasRef.current;
-      const trigger = organized.nodes.find((n) => n.type === "trigger");
-      if (!trigger) return;
-
-      const xs = organized.nodes.map((n) => n.position.x);
-      const ys = organized.nodes.map((n) => n.position.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const contentW = maxX - minX + NODE_WIDTH + 200;
-      const w = Math.max(contentW, 1200);
-      const ox = (w - contentW) / 2 - minX + NODE_WIDTH / 2 + 100;
-
-      const centerX = (trigger.position.x + ox) * zoom;
-      container.scrollLeft = centerX - container.clientWidth / 2;
-      container.scrollTop = 0;
-    });
-  }, [workflow, pushHistory, zoom]);
+    // Re-center after a tick (offsets recalculate on render)
+    setTimeout(centerOnTrigger, 50);
+  }, [workflow, pushHistory, centerOnTrigger]);
 
   // ─── Fit view ───
   const handleFitView = useCallback(() => {
@@ -2258,15 +2248,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       pushHistory(autoLayoutWorkflow(template.workflow));
       setShowTemplates(false);
       setSelectedNodeId(null);
-
-      // Re-center
-      requestAnimationFrame(() => {
-        if (!canvasRef.current) return;
-        const trigger = template.workflow.nodes.find((n) => n.type === "trigger");
-        if (!trigger) return;
-        canvasRef.current.scrollLeft = 0;
-        canvasRef.current.scrollTop = 0;
-      });
+      setTimeout(centerOnTrigger, 50);
     },
     [pushHistory]
   );
