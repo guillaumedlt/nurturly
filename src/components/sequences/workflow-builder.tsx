@@ -341,6 +341,7 @@ function AddNodeButton({
   return (
     <div
       ref={ref}
+      data-add-btn
       className="absolute z-20"
       style={{ left: x - 12, top: y - 12 }}
     >
@@ -1380,6 +1381,7 @@ function WorkflowNodeCard({
 
   return (
     <div
+      data-node-card
       className={`absolute select-none transition-all duration-200 ${selected ? "z-10" : "z-0"}`}
       style={{
         left: node.position.x - NODE_WIDTH / 2,
@@ -1388,8 +1390,8 @@ function WorkflowNodeCard({
       }}
     >
       <div
-        onClick={onSelect}
-        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e); }}
+        onClick={(e) => { e.stopPropagation(); onSelect(); }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu?.(e); }}
         className={`group relative flex cursor-pointer items-center gap-3 rounded-xl border-2 bg-background px-4 transition-all ${
           error
             ? "border-red-400 shadow-red-100"
@@ -1860,8 +1862,10 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
   const [showTemplates, setShowTemplates] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
+  const panRef = useRef<{ startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
   const initializedRef = useRef(false);
   const [minimapKey, setMinimapKey] = useState(0);
 
@@ -2015,6 +2019,57 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
     const handler = () => setMinimapKey((k) => k + 1);
     container.addEventListener("scroll", handler, { passive: true });
     return () => container.removeEventListener("scroll", handler);
+  }, []);
+
+  // ─── Canvas panning (Figma-style drag to pan) ───
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only pan on left-click on the canvas background itself
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    // Don't pan if clicking on a node, button, or interactive element
+    if (target.closest("[data-node-card]") || target.closest("button") || target.closest("[data-add-btn]")) return;
+
+    const container = canvasRef.current;
+    if (!container) return;
+
+    panRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      scrollLeft: container.scrollLeft,
+      scrollTop: container.scrollTop,
+    };
+    setIsPanning(true);
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!panRef.current || !canvasRef.current) return;
+      const dx = ev.clientX - panRef.current.startX;
+      const dy = ev.clientY - panRef.current.startY;
+      canvasRef.current.scrollLeft = panRef.current.scrollLeft - dx;
+      canvasRef.current.scrollTop = panRef.current.scrollTop - dy;
+    };
+
+    const onMouseUp = (ev: MouseEvent) => {
+      const wasDragging = panRef.current && (
+        Math.abs(ev.clientX - panRef.current.startX) > 3 ||
+        Math.abs(ev.clientY - panRef.current.startY) > 3
+      );
+      panRef.current = null;
+      setIsPanning(false);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+
+      // If we actually panned, don't deselect
+      if (!wasDragging) {
+        setSelectedNodeId(null);
+        setContextMenu(null);
+      }
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+
+    // Don't deselect yet — wait for mouseup to decide
+    e.preventDefault();
   }, []);
 
   // ─── Undo/Redo keyboard shortcuts ───
@@ -2345,17 +2400,12 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
       {/* Canvas area */}
       <div
         ref={canvasRef}
-        className="relative flex-1 overflow-auto bg-[var(--muted)]"
+        className={`relative flex-1 overflow-auto bg-[var(--muted)] ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
         style={{
           backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
           backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
         }}
-        onClick={(e) => {
-          if (e.target === e.currentTarget || (e.target as HTMLElement).closest("[data-canvas-bg]")) {
-            setSelectedNodeId(null);
-            setContextMenu(null);
-          }
-        }}
+        onMouseDown={handleCanvasMouseDown}
       >
         <div
           data-canvas-bg
