@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Users, Search, Trash2, Building2, ChevronLeft, ChevronRight, Upload, Columns3, Check } from "lucide-react";
+import { Plus, Users, Search, Trash2, Building2, ChevronLeft, ChevronRight, Upload, Columns3, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -12,6 +12,8 @@ import Link from "next/link";
 import type { ContactProperty } from "@/lib/contacts/types";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ContactFilterBuilder } from "@/components/contacts/contact-filter-builder";
+import { type ContactFilters, createEmptyFilters, hasActiveFilters, countActiveFilters } from "@/lib/contacts/filters";
 
 interface Contact {
   id: string;
@@ -55,6 +57,7 @@ export default function ContactsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(DEFAULT_VISIBLE);
+  const [filters, setFilters] = useState<ContactFilters>(createEmptyFilters());
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
@@ -67,6 +70,7 @@ export default function ContactsPage() {
       if (search.trim()) params.set("search", search.trim());
       if (subscribed) params.set("subscribed", subscribed);
       if (source) params.set("source", source);
+      if (hasActiveFilters(filters)) params.set("filters", JSON.stringify(filters));
 
       const [contactsRes, propsRes] = await Promise.all([
         fetch(`/api/contacts?${params}`),
@@ -85,7 +89,7 @@ export default function ContactsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, subscribed, source]);
+  }, [page, search, subscribed, source, filters]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchContacts(), search ? 300 : 0);
@@ -226,6 +230,12 @@ export default function ContactsPage() {
                   className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-3 text-[12px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
                 />
               </div>
+
+              <ContactFilterBuilder
+                filters={filters}
+                onChange={(f) => { setFilters(f); setPage(1); }}
+                customProperties={customProps}
+              />
 
               <div className="flex items-center gap-1">
                 {[
