@@ -122,6 +122,7 @@ export const lists = pgTable("lists", {
   type: listTypeEnum("type").notNull().default("static"),
   filterRules: text("filter_rules"),
   contactCount: integer("contact_count").default(0).notNull(),
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -251,6 +252,7 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
   status: mcStatusEnum("status").notNull().default("draft"),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

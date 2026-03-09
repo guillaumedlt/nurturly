@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { campaigns, sequences, emails } from "@/lib/db/schema";
+import { campaigns, sequences, emails, lists, marketingCampaigns } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const { itemId, folderId, entityType } = body as {
     itemId: string;
     folderId: string | null;
-    entityType: "transactional" | "sequence" | "email";
+    entityType: "transactional" | "sequence" | "email" | "audience" | "campaign";
   };
 
   if (!itemId || !entityType) {
@@ -36,6 +36,16 @@ export async function POST(req: NextRequest) {
       .update(emails)
       .set({ folderId })
       .where(and(eq(emails.id, itemId), eq(emails.userId, session.user.id)));
+  } else if (entityType === "audience") {
+    await db
+      .update(lists)
+      .set({ folderId })
+      .where(and(eq(lists.id, itemId), eq(lists.userId, session.user.id)));
+  } else if (entityType === "campaign") {
+    await db
+      .update(marketingCampaigns)
+      .set({ folderId })
+      .where(and(eq(marketingCampaigns.id, itemId), eq(marketingCampaigns.userId, session.user.id)));
   }
 
   return NextResponse.json({ ok: true });

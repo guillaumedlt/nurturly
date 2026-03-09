@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { folders, campaigns, sequences, emails } from "@/lib/db/schema";
+import { folders, campaigns, sequences, emails, lists, marketingCampaigns } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -96,6 +96,10 @@ export async function DELETE(req: NextRequest) {
     await db.update(sequences).set({ folderId: null }).where(eq(sequences.folderId, id));
   } else if (folder.entityType === "email") {
     await db.update(emails).set({ folderId: null }).where(eq(emails.folderId, id));
+  } else if (folder.entityType === "audience") {
+    await db.update(lists).set({ folderId: null }).where(eq(lists.folderId, id));
+  } else if (folder.entityType === "campaign") {
+    await db.update(marketingCampaigns).set({ folderId: null }).where(eq(marketingCampaigns.folderId, id));
   }
 
   await db.delete(folders).where(and(eq(folders.id, id), eq(folders.userId, session.user.id)));
