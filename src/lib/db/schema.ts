@@ -98,6 +98,22 @@ export const verificationTokens = pgTable("verification_tokens", {
   primaryKey({ columns: [table.identifier, table.token] }),
 ]);
 
+// ── AI Configurations ──
+
+export const aiConfigurations = pgTable("ai_configurations", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  provider: text("provider").notNull(),
+  apiKey: text("api_key").notNull(),
+  model: text("model").notNull(),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("ai_config_user_idx").on(table.userId),
+]);
+
 // ── Workspaces ──
 
 export const memberRoleEnum = pgEnum("member_role", ["owner", "admin", "member"]);

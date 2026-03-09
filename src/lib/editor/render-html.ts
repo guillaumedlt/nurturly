@@ -26,11 +26,11 @@ const BASE_STYLES = {
 const SOCIAL_ICONS: Record<string, { label: string; color: string }> = {
   twitter: { label: "𝕏", color: "#000000" },
   linkedin: { label: "in", color: "#0A66C2" },
-  instagram: { label: "IG", color: "#E4405F" },
+  instagram: { label: "📷", color: "#E4405F" },
   facebook: { label: "f", color: "#1877F2" },
   youtube: { label: "▶", color: "#FF0000" },
   tiktok: { label: "♪", color: "#000000" },
-  github: { label: "GH", color: "#181717" },
+  github: { label: "⌨", color: "#181717" },
   website: { label: "🌐", color: "#525252" },
 };
 
@@ -60,6 +60,7 @@ function renderMarks(text: string, marks?: TiptapMark[]): string {
         const styles: string[] = [];
         if (mark.attrs?.color) styles.push(`color: ${mark.attrs.color}`);
         if (mark.attrs?.fontSize) styles.push(`font-size: ${mark.attrs.fontSize}`);
+        if (mark.attrs?.fontFamily) styles.push(`font-family: ${mark.attrs.fontFamily}`);
         if (styles.length > 0) {
           result = `<span style="${styles.join("; ")}">${result}</span>`;
         }

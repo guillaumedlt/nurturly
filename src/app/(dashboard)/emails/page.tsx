@@ -33,6 +33,12 @@ export default function EmailsPage() {
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiConfigs, setAiConfigs] = useState<{ id: string; name: string; provider: string; model: string; isDefault: boolean }[]>([]);
+  const [selectedConfigId, setSelectedConfigId] = useState("");
+  const [aiTone, setAiTone] = useState("professional");
+  const [aiStyle, setAiStyle] = useState("detailed");
+  const [aiLength, setAiLength] = useState("medium");
+  const [aiLanguage, setAiLanguage] = useState("english");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -147,6 +153,21 @@ export default function EmailsPage() {
     }
   };
 
+  // Fetch AI configs when dialog opens
+  useEffect(() => {
+    if (showAiDialog) {
+      fetch("/api/settings/ai-configs")
+        .then((res) => res.json())
+        .then((data) => {
+          setAiConfigs(data.configs || []);
+          const def = (data.configs || []).find((c: { isDefault: boolean }) => c.isDefault);
+          if (def) setSelectedConfigId(def.id);
+          else if (data.configs?.length > 0) setSelectedConfigId(data.configs[0].id);
+        })
+        .catch(() => {});
+    }
+  }, [showAiDialog]);
+
   const generateWithAi = async () => {
     if (!aiPrompt.trim()) return;
     setAiGenerating(true);
@@ -154,7 +175,11 @@ export default function EmailsPage() {
       const res = await fetch("/api/ai/generate-template", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: aiPrompt.trim() }),
+        body: JSON.stringify({
+          prompt: aiPrompt.trim(),
+          configId: selectedConfigId || undefined,
+          options: { tone: aiTone, style: aiStyle, length: aiLength, language: aiLanguage },
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -505,7 +530,7 @@ export default function EmailsPage() {
         <>
           <div className="fixed inset-0 z-50 bg-black/40" onClick={() => !aiGenerating && setShowAiDialog(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-[480px] rounded-xl border border-border bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="w-full max-w-[540px] rounded-xl border border-border bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="border-b border-border px-5 py-4">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-muted-foreground" />
@@ -513,12 +538,13 @@ export default function EmailsPage() {
                 </div>
                 <p className="mt-0.5 text-[12px] text-muted-foreground">Describe the email you want and AI will create an optimized template</p>
               </div>
-              <div className="p-5 space-y-3">
+              <div className="p-5 space-y-4">
+                {/* Prompt */}
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   placeholder="E.g. Welcome email for new SaaS users with a CTA to complete their profile setup..."
-                  rows={4}
+                  rows={3}
                   disabled={aiGenerating}
                   className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 disabled:opacity-50"
                   autoFocus
@@ -526,37 +552,127 @@ export default function EmailsPage() {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) generateWithAi();
                   }}
                 />
-                <p className="text-[10px] text-muted-foreground/50">
-                  Press Cmd+Enter to generate. Requires AI to be configured in Settings.
-                </p>
+
+                {/* Model selector */}
+                {aiConfigs.length > 0 && (
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Model</label>
+                    <select
+                      value={selectedConfigId}
+                      onChange={(e) => setSelectedConfigId(e.target.value)}
+                      disabled={aiGenerating}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    >
+                      {aiConfigs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{c.isDefault ? " (default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {aiConfigs.length === 0 && (
+                  <p className="rounded-lg bg-muted/50 px-3 py-2 text-[12px] text-muted-foreground">
+                    No AI configured. Go to Settings → AI to add your API keys.
+                  </p>
+                )}
+
+                {/* Generation options */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Tone</label>
+                    <select
+                      value={aiTone}
+                      onChange={(e) => setAiTone(e.target.value)}
+                      disabled={aiGenerating}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    >
+                      <option value="professional">Professional</option>
+                      <option value="casual">Casual</option>
+                      <option value="friendly">Friendly</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="persuasive">Persuasive</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Style</label>
+                    <select
+                      value={aiStyle}
+                      onChange={(e) => setAiStyle(e.target.value)}
+                      disabled={aiGenerating}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    >
+                      <option value="minimal">Minimal</option>
+                      <option value="detailed">Detailed</option>
+                      <option value="storytelling">Storytelling</option>
+                      <option value="bullet_points">Bullet points</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Length</label>
+                    <select
+                      value={aiLength}
+                      onChange={(e) => setAiLength(e.target.value)}
+                      disabled={aiGenerating}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    >
+                      <option value="short">Short (2-3 paragraphs)</option>
+                      <option value="medium">Medium (4-6 paragraphs)</option>
+                      <option value="long">Long (7+ paragraphs)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Language</label>
+                    <select
+                      value={aiLanguage}
+                      onChange={(e) => setAiLanguage(e.target.value)}
+                      disabled={aiGenerating}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    >
+                      <option value="english">English</option>
+                      <option value="french">French</option>
+                      <option value="spanish">Spanish</option>
+                      <option value="german">German</option>
+                      <option value="portuguese">Portuguese</option>
+                      <option value="italian">Italian</option>
+                      <option value="dutch">Dutch</option>
+                      <option value="japanese">Japanese</option>
+                      <option value="chinese">Chinese</option>
+                      <option value="arabic">Arabic</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-              <div className="border-t border-border px-5 py-3 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowAiDialog(false); setAiPrompt(""); }}
-                  disabled={aiGenerating}
-                  className="rounded-md px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={generateWithAi}
-                  disabled={!aiPrompt.trim() || aiGenerating}
-                  className="flex items-center gap-1.5 rounded-md bg-foreground px-4 py-1.5 text-[12px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
-                  {aiGenerating ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Generate
-                    </>
-                  )}
-                </button>
+              <div className="border-t border-border px-5 py-3 flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground/50">Cmd+Enter to generate</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAiDialog(false); setAiPrompt(""); }}
+                    disabled={aiGenerating}
+                    className="rounded-md px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={generateWithAi}
+                    disabled={!aiPrompt.trim() || aiGenerating || aiConfigs.length === 0}
+                    className="flex items-center gap-1.5 rounded-md bg-foreground px-4 py-1.5 text-[12px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {aiGenerating ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Generate
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

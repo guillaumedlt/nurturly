@@ -138,14 +138,25 @@ export default function SettingsPage() {
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
 
   // AI state
-  const [aiProvider, setAiProvider] = useState<string>("");
-  const [aiApiKey, setAiApiKey] = useState<string>("");
-  const [aiModel, setAiModel] = useState<string>("");
-  const [aiHasKey, setAiHasKey] = useState(false);
-  const [aiMaskedKey, setAiMaskedKey] = useState<string | null>(null);
-  const [aiShowKey, setAiShowKey] = useState(false);
-  const [savingAi, setSavingAi] = useState(false);
+  interface AiConfig {
+    id: string;
+    name: string;
+    provider: string;
+    model: string;
+    maskedKey: string;
+    isDefault: boolean;
+  }
+  const [aiConfigs, setAiConfigs] = useState<AiConfig[]>([]);
   const [aiLoaded, setAiLoaded] = useState(false);
+  const [savingAi, setSavingAi] = useState(false);
+  const [showAddAi, setShowAddAi] = useState(false);
+  const [editingAiId, setEditingAiId] = useState<string | null>(null);
+  const [aiFormName, setAiFormName] = useState("");
+  const [aiFormProvider, setAiFormProvider] = useState("");
+  const [aiFormModel, setAiFormModel] = useState("");
+  const [aiFormKey, setAiFormKey] = useState("");
+  const [aiShowKey, setAiShowKey] = useState(false);
+  const [deleteAiConfirm, setDeleteAiConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const fetchProperties = useCallback(async () => {
     const [contactRes, companyRes] = await Promise.all([
@@ -197,15 +208,12 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // Fetch AI settings
-  const fetchAiSettings = useCallback(async () => {
-    const res = await fetch("/api/settings/ai");
+  // Fetch AI configs
+  const fetchAiConfigs = useCallback(async () => {
+    const res = await fetch("/api/settings/ai-configs");
     if (res.ok) {
       const data = await res.json();
-      setAiProvider(data.provider || "");
-      setAiModel(data.model || "");
-      setAiHasKey(data.hasApiKey);
-      setAiMaskedKey(data.apiKey);
+      setAiConfigs(data.configs);
       setAiLoaded(true);
     }
   }, []);
@@ -213,36 +221,111 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === "profile" && !profile) fetchProfile();
     if (activeTab === "team") fetchTeam();
-    if (activeTab === "ai" && !aiLoaded) fetchAiSettings();
-  }, [activeTab, profile, fetchProfile, fetchTeam, aiLoaded, fetchAiSettings]);
+    if (activeTab === "ai" && !aiLoaded) fetchAiConfigs();
+  }, [activeTab, profile, fetchProfile, fetchTeam, aiLoaded, fetchAiConfigs]);
 
-  const handleSaveAi = async () => {
+  const resetAiForm = () => {
+    setAiFormName("");
+    setAiFormProvider("");
+    setAiFormModel("");
+    setAiFormKey("");
+    setAiShowKey(false);
+    setShowAddAi(false);
+    setEditingAiId(null);
+  };
+
+  const startEditAi = (config: AiConfig) => {
+    setEditingAiId(config.id);
+    setAiFormName(config.name);
+    setAiFormProvider(config.provider);
+    setAiFormModel(config.model);
+    setAiFormKey("");
+    setAiShowKey(false);
+    setShowAddAi(false);
+  };
+
+  const handleSaveAiConfig = async () => {
+    if (!aiFormName.trim() || !aiFormProvider || !aiFormModel) return;
+    if (!editingAiId && !aiFormKey.trim()) return;
+
     setSavingAi(true);
     try {
-      const payload: Record<string, unknown> = { provider: aiProvider || null, model: aiModel || null };
-      // Only send apiKey if user typed a new one
-      if (aiApiKey) payload.apiKey = aiApiKey;
-      // If provider cleared, also clear key
-      if (!aiProvider) payload.apiKey = null;
+      if (editingAiId) {
+        // Update
+        const payload: Record<string, unknown> = {
+          id: editingAiId,
+          name: aiFormName.trim(),
+          provider: aiFormProvider,
+          model: aiFormModel,
+        };
+        if (aiFormKey.trim()) payload.apiKey = aiFormKey.trim();
 
-      const res = await fetch("/api/settings/ai", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        toast.success("AI settings saved");
-        setAiApiKey("");
-        setAiShowKey(false);
-        fetchAiSettings();
+        const res = await fetch("/api/settings/ai-configs", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          toast.success("Configuration updated");
+          resetAiForm();
+          fetchAiConfigs();
+        } else {
+          const err = await res.json();
+          toast.error(err.error || "Failed to update");
+        }
       } else {
-        const err = await res.json();
-        toast.error(err.error || "Failed to save AI settings");
+        // Create
+        const res = await fetch("/api/settings/ai-configs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: aiFormName.trim(),
+            provider: aiFormProvider,
+            apiKey: aiFormKey.trim(),
+            model: aiFormModel,
+          }),
+        });
+        if (res.ok) {
+          toast.success("Configuration added");
+          resetAiForm();
+          fetchAiConfigs();
+        } else {
+          const err = await res.json();
+          toast.error(err.error || "Failed to add configuration");
+        }
       }
     } catch {
-      toast.error("Failed to save AI settings");
+      toast.error("Failed to save configuration");
     } finally {
       setSavingAi(false);
+    }
+  };
+
+  const handleSetDefaultAi = async (id: string) => {
+    const res = await fetch("/api/settings/ai-configs", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, isDefault: true }),
+    });
+    if (res.ok) {
+      toast.success("Default updated");
+      fetchAiConfigs();
+    }
+  };
+
+  const handleDeleteAiConfig = async () => {
+    if (!deleteAiConfirm) return;
+    const res = await fetch("/api/settings/ai-configs", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: deleteAiConfirm.id }),
+    });
+    if (res.ok) {
+      toast.success("Configuration deleted");
+      setDeleteAiConfirm(null);
+      fetchAiConfigs();
+    } else {
+      toast.error("Failed to delete");
     }
   };
 
@@ -886,119 +969,258 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-xl border border-border bg-background p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Bot className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-[13px] font-medium text-foreground">AI Configuration</h3>
-                </div>
-                <p className="text-[12px] text-muted-foreground mb-5">
-                  Connect your LLM API key to use AI-powered template generation. Your key is stored securely and never shared.
-                </p>
-
-                <div className="space-y-4">
-                  {/* Provider */}
-                  <div>
-                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-                      Provider
-                    </label>
-                    <select
-                      value={aiProvider}
-                      onChange={(e) => {
-                        setAiProvider(e.target.value);
-                        setAiModel("");
-                      }}
-                      className="h-9 w-full max-w-[320px] rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="">Select a provider...</option>
-                      {AI_PROVIDERS.map((p) => (
-                        <option key={p.value} value={p.value}>{p.label}</option>
-                      ))}
-                    </select>
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-[13px] font-medium text-foreground">AI Configurations</h3>
                   </div>
-
-                  {/* Model */}
-                  {aiProvider && (
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-                        Model
-                      </label>
-                      <select
-                        value={aiModel}
-                        onChange={(e) => setAiModel(e.target.value)}
-                        className="h-9 w-full max-w-[320px] rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
-                      >
-                        <option value="">Select a model...</option>
-                        {(AI_MODELS[aiProvider] || []).map((m) => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* API Key */}
-                  {aiProvider && (
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-                        API Key
-                      </label>
-                      {aiHasKey && !aiApiKey && (
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
-                            Connected
-                          </span>
-                          <span className="font-mono text-[11px] text-muted-foreground">
-                            {aiMaskedKey}
-                          </span>
-                        </div>
-                      )}
-                      <div className="relative max-w-[320px]">
-                        <input
-                          type={aiShowKey ? "text" : "password"}
-                          value={aiApiKey}
-                          onChange={(e) => setAiApiKey(e.target.value)}
-                          placeholder={aiHasKey ? "Enter new key to replace..." : "sk-... or AIza..."}
-                          className="h-9 w-full rounded-md border border-input bg-background pl-3 pr-10 font-mono text-[12px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 placeholder:font-sans"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setAiShowKey(!aiShowKey)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                        >
-                          {aiShowKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                      <p className="mt-1.5 text-[11px] text-muted-foreground/60">
-                        {aiProvider === "openai" && "Get your API key from platform.openai.com/api-keys"}
-                        {aiProvider === "anthropic" && "Get your API key from console.anthropic.com/settings/keys"}
-                        {aiProvider === "google" && "Get your API key from aistudio.google.com/apikey"}
-                      </p>
-                    </div>
-                  )}
+                  <p className="mt-1 text-[12px] text-muted-foreground">
+                    Add multiple LLM providers and choose which one to use for each generation.
+                  </p>
                 </div>
+                <Button
+                  size="sm"
+                  className="h-8 text-[12px]"
+                  onClick={() => { resetAiForm(); setShowAddAi(true); }}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
 
-                <div className="mt-5 flex justify-end">
+              {/* Config list */}
+              {aiConfigs.length === 0 && !showAddAi && (
+                <div className="rounded-xl border border-dashed border-border py-12 text-center">
+                  <Bot className="mx-auto h-8 w-8 text-muted-foreground/30" />
+                  <p className="mt-2 text-[13px] text-muted-foreground">No AI configurations yet</p>
+                  <p className="mt-0.5 text-[12px] text-muted-foreground/60">Add your first LLM API key to start generating templates with AI</p>
                   <Button
                     size="sm"
-                    className="h-8 text-[12px]"
-                    onClick={handleSaveAi}
-                    disabled={savingAi || (!aiProvider && !aiHasKey)}
+                    variant="outline"
+                    className="mt-4 h-8 text-[12px]"
+                    onClick={() => { resetAiForm(); setShowAddAi(true); }}
                   >
-                    {savingAi ? "Saving..." : "Save settings"}
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Add configuration
                   </Button>
                 </div>
-              </div>
+              )}
+
+              {aiConfigs.map((config) => (
+                <div key={config.id} className="rounded-xl border border-border bg-background p-4">
+                  {editingAiId === config.id ? (
+                    /* Inline edit form */
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Name</label>
+                          <input
+                            type="text"
+                            value={aiFormName}
+                            onChange={(e) => setAiFormName(e.target.value)}
+                            placeholder="e.g. GPT-4o Fast"
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Provider</label>
+                          <select
+                            value={aiFormProvider}
+                            onChange={(e) => { setAiFormProvider(e.target.value); setAiFormModel(""); }}
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                          >
+                            <option value="">Select...</option>
+                            {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Model</label>
+                          <select
+                            value={aiFormModel}
+                            onChange={(e) => setAiFormModel(e.target.value)}
+                            disabled={!aiFormProvider}
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-50"
+                          >
+                            <option value="">Select...</option>
+                            {(AI_MODELS[aiFormProvider] || []).map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">API Key</label>
+                          <div className="relative">
+                            <input
+                              type={aiShowKey ? "text" : "password"}
+                              value={aiFormKey}
+                              onChange={(e) => setAiFormKey(e.target.value)}
+                              placeholder="Leave empty to keep current key"
+                              className="h-9 w-full rounded-md border border-input bg-background pl-3 pr-10 font-mono text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 placeholder:font-sans"
+                            />
+                            <button type="button" onClick={() => setAiShowKey(!aiShowKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                              {aiShowKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" className="h-8 text-[12px]" onClick={resetAiForm}>Cancel</Button>
+                        <Button size="sm" className="h-8 text-[12px]" onClick={handleSaveAiConfig} disabled={savingAi || !aiFormName.trim() || !aiFormProvider || !aiFormModel}>
+                          {savingAi ? "Saving..." : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Display row */
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-medium text-foreground truncate">{config.name}</span>
+                          {config.isDefault && (
+                            <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-[9px] font-medium text-foreground">Default</span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
+                          <span className="capitalize">{AI_PROVIDERS.find(p => p.value === config.provider)?.label || config.provider}</span>
+                          <span className="text-muted-foreground/30">·</span>
+                          <span>{AI_MODELS[config.provider]?.find(m => m.value === config.model)?.label || config.model}</span>
+                          <span className="text-muted-foreground/30">·</span>
+                          <span className="font-mono text-[11px]">{config.maskedKey}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {!config.isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefaultAi(config.id)}
+                            title="Set as default"
+                            className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          >
+                            <Check className="h-3 w-3" />
+                            Default
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => startEditAi(config)}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteAiConfirm({ id: config.id, name: config.name })}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Add new config form */}
+              {showAddAi && (
+                <div className="rounded-xl border border-ring/30 bg-background p-4">
+                  <div className="mb-3 text-[12px] font-medium text-foreground">New configuration</div>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Name</label>
+                        <input
+                          type="text"
+                          value={aiFormName}
+                          onChange={(e) => setAiFormName(e.target.value)}
+                          placeholder="e.g. Claude Sonnet 4"
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Provider</label>
+                        <select
+                          value={aiFormProvider}
+                          onChange={(e) => { setAiFormProvider(e.target.value); setAiFormModel(""); }}
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                        >
+                          <option value="">Select...</option>
+                          {AI_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Model</label>
+                        <select
+                          value={aiFormModel}
+                          onChange={(e) => setAiFormModel(e.target.value)}
+                          disabled={!aiFormProvider}
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none focus:border-ring focus:ring-1 focus:ring-ring disabled:opacity-50"
+                        >
+                          <option value="">Select...</option>
+                          {(AI_MODELS[aiFormProvider] || []).map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">API Key</label>
+                        <div className="relative">
+                          <input
+                            type={aiShowKey ? "text" : "password"}
+                            value={aiFormKey}
+                            onChange={(e) => setAiFormKey(e.target.value)}
+                            placeholder="sk-... or AIza..."
+                            className="h-9 w-full rounded-md border border-input bg-background pl-3 pr-10 font-mono text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 placeholder:font-sans"
+                          />
+                          <button type="button" onClick={() => setAiShowKey(!aiShowKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            {aiShowKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground/50">
+                          {aiFormProvider === "openai" && "platform.openai.com/api-keys"}
+                          {aiFormProvider === "anthropic" && "console.anthropic.com/settings/keys"}
+                          {aiFormProvider === "google" && "aistudio.google.com/apikey"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" className="h-8 text-[12px]" onClick={resetAiForm}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        className="h-8 text-[12px]"
+                        onClick={handleSaveAiConfig}
+                        disabled={savingAi || !aiFormName.trim() || !aiFormProvider || !aiFormModel || !aiFormKey.trim()}
+                      >
+                        {savingAi ? "Saving..." : "Add configuration"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Info */}
               <div className="rounded-xl border border-border bg-muted/30 p-5">
                 <h4 className="text-[12px] font-medium text-foreground mb-2">How it works</h4>
                 <ul className="space-y-1.5 text-[12px] text-muted-foreground">
-                  <li>1. Select your preferred AI provider and model</li>
-                  <li>2. Enter your API key (stored server-side, never exposed to the browser)</li>
-                  <li>3. Go to Emails → Templates → "Generate with AI" to create templates from a prompt</li>
+                  <li>1. Add one or more AI configurations (OpenAI, Anthropic, Google)</li>
+                  <li>2. Set one as default — it will be pre-selected when generating templates</li>
+                  <li>3. Go to Emails → Templates → "Generate with AI" and choose which model to use</li>
                 </ul>
               </div>
             </>
           )}
+
+          {/* Delete AI config confirm */}
+          <ConfirmDialog
+            open={!!deleteAiConfirm}
+            onOpenChange={() => setDeleteAiConfirm(null)}
+            title="Delete AI configuration"
+            description={`Are you sure you want to delete "${deleteAiConfirm?.name}"? This cannot be undone.`}
+            confirmLabel="Delete"
+            onConfirm={handleDeleteAiConfig}
+          />
         </div>
       )}
 
