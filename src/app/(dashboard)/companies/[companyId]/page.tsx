@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Globe, Phone, MapPin, Building2, Users, Pencil,
-  Trash2, Check, X, Mail, Briefcase, FileText,
+  Trash2, Check, X, Mail, Briefcase, FileText, Plus, Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,13 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  // Add contact form
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newJobTitle, setNewJobTitle] = useState("");
+  const [addingContact, setAddingContact] = useState(false);
 
   const fetchCompany = useCallback(async () => {
     const [companyRes, propsRes] = await Promise.all([
@@ -108,6 +115,44 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
     if (!company) return;
     await fetch(`/api/companies/${company.id}`, { method: "DELETE" });
     router.push("/companies");
+  };
+
+  const handleAddContact = async () => {
+    if (!newEmail.trim() || !company) return;
+    setAddingContact(true);
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newEmail.trim(),
+          firstName: newFirstName.trim() || null,
+          lastName: newLastName.trim() || null,
+          jobTitle: newJobTitle.trim() || null,
+          company: company.name,
+          companyId: company.id,
+        }),
+      });
+      if (res.ok) {
+        setNewEmail("");
+        setNewFirstName("");
+        setNewLastName("");
+        setNewJobTitle("");
+        setShowAddContact(false);
+        fetchCompany();
+      }
+    } finally {
+      setAddingContact(false);
+    }
+  };
+
+  const handleUnlinkContact = async (contactId: string) => {
+    await fetch(`/api/contacts/${contactId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId: null }),
+    });
+    fetchCompany();
   };
 
   const startEdit = (field: string, currentValue: string) => {
@@ -400,34 +445,92 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
                 <span className="ml-1.5 text-[11px] text-muted-foreground/60">{company.contacts.length}</span>
               )}
             </h3>
+            <Button size="sm" className="h-7 text-[11px]" onClick={() => setShowAddContact(!showAddContact)}>
+              <Plus className="mr-1 h-3 w-3" />
+              Add contact
+            </Button>
           </div>
 
+          {/* Inline add contact form */}
+          {showAddContact && (
+            <div className="rounded-xl border border-border bg-background p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                    Email <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="john@company.com"
+                    className="h-8 w-full rounded-md border border-input bg-background px-3 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAddContact(); if (e.key === "Escape") setShowAddContact(false); }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">First name</label>
+                  <input
+                    type="text"
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                    placeholder="John"
+                    className="h-8 w-full rounded-md border border-input bg-background px-3 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Last name</label>
+                  <input
+                    type="text"
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                    placeholder="Doe"
+                    className="h-8 w-full rounded-md border border-input bg-background px-3 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Job title</label>
+                  <input
+                    type="text"
+                    value={newJobTitle}
+                    onChange={(e) => setNewJobTitle(e.target.value)}
+                    placeholder="CEO"
+                    className="h-8 w-full rounded-md border border-input bg-background px-3 text-[12px] outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => setShowAddContact(false)}>Cancel</Button>
+                <Button size="sm" className="h-7 text-[11px]" disabled={!newEmail.trim() || addingContact} onClick={handleAddContact}>
+                  {addingContact ? "Adding..." : "Add to company"}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-border bg-background">
-            {company.contacts.length === 0 ? (
+            {company.contacts.length === 0 && !showAddContact ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Users className="h-8 w-8 text-muted-foreground/30" strokeWidth={1.5} />
                 <p className="mt-3 text-[13px] font-medium text-foreground">No contacts yet</p>
-                <p className="mt-1 text-[12px] text-muted-foreground">Contacts associated with this company will appear here.</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">Add contacts to associate them with this company.</p>
               </div>
-            ) : (
+            ) : company.contacts.length > 0 ? (
               <div className="divide-y divide-border">
                 {company.contacts.map((contact) => {
                   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
-                  const initials = contact.firstName
+                  const cInitials = contact.firstName
                     ? `${contact.firstName[0]}${contact.lastName?.[0] || ""}`.toUpperCase()
                     : contact.email[0].toUpperCase();
                   return (
-                    <Link
-                      key={contact.id}
-                      href={`/contacts/${contact.id}`}
-                      className="flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-muted/30"
-                    >
-                      <div className="flex items-center gap-3">
+                    <div key={contact.id} className="group flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-muted/30">
+                      <Link href={`/contacts/${contact.id}`} className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-muted-foreground">
-                          {initials}
+                          {cInitials}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[13px] font-medium text-foreground">{name || contact.email}</p>
+                          <p className="text-[13px] font-medium text-foreground hover:underline">{name || contact.email}</p>
                           <div className="flex items-center gap-2">
                             {name && <span className="text-[11px] text-muted-foreground">{contact.email}</span>}
                             {contact.jobTitle && (
@@ -438,16 +541,24 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
                             )}
                           </div>
                         </div>
-                      </div>
+                      </Link>
                       <div className="flex items-center gap-2">
                         <div className={`h-1.5 w-1.5 rounded-full ${contact.subscribed ? "bg-emerald-500" : "bg-neutral-300"}`} />
-                        <span className="text-[11px] text-muted-foreground">{formatRelativeDate(contact.createdAt)}</span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">{formatRelativeDate(contact.createdAt)}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleUnlinkContact(contact.id)}
+                          title="Remove from company"
+                          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 group-hover:opacity-100 transition-all hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Unlink className="h-3 w-3" />
+                        </button>
                       </div>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

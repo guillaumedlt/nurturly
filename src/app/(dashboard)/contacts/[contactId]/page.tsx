@@ -62,6 +62,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
   const [activeTab, setActiveTab] = useState<"activity" | "audiences" | "sequences">("activity");
   const [newTag, setNewTag] = useState("");
   const [showTagInput, setShowTagInput] = useState(false);
+  // Company autocomplete
+  const [companySearch, setCompanySearch] = useState("");
+  const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string; domain: string | null }[]>([]);
+  const [showCompanyPicker, setShowCompanyPicker] = useState(false);
 
   const fetchContact = useCallback(async () => {
     const [contactRes, propsRes] = await Promise.all([
@@ -116,6 +120,52 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
       setContact((prev) => prev ? { ...prev, ...updated } : prev);
     }
     setEditing(null);
+  };
+
+  const linkCompany = async (cId: string, cName: string) => {
+    if (!contact) return;
+    const res = await fetch(`/api/contacts/${contact.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId: cId, company: cName }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setContact((prev) => prev ? { ...prev, ...updated } : prev);
+      setCompanyInfo({ id: cId, name: cName, domain: null, industry: null });
+      // Refetch company details
+      fetch(`/api/companies/${cId}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => { if (data) setCompanyInfo({ id: data.id, name: data.name, domain: data.domain, industry: data.industry }); });
+    }
+    setShowCompanyPicker(false);
+    setCompanySearch("");
+  };
+
+  const unlinkCompany = async () => {
+    if (!contact) return;
+    const res = await fetch(`/api/contacts/${contact.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId: null, company: null }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setContact((prev) => prev ? { ...prev, ...updated } : prev);
+      setCompanyInfo(null);
+    }
+  };
+
+  const createAndLinkCompany = async (name: string) => {
+    const res = await fetch("/api/companies", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      await linkCompany(created.id, created.name);
+    }
   };
 
   const addTag = async () => {
@@ -238,18 +288,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
                 onCancel={() => setEditing(null)}
               />
               <EditableField
-                icon={Building2}
-                label="Company"
-                value={contact.company || ""}
-                placeholder="Add company"
-                editing={editing === "company"}
-                editValue={editValue}
-                onStartEdit={() => startEdit("company", contact.company || "")}
-                onEditChange={setEditValue}
-                onSave={() => updateField("company", editValue)}
-                onCancel={() => setEditing(null)}
-              />
-              <EditableField
                 icon={Briefcase}
                 label="Job title"
                 value={contact.jobTitle || ""}
@@ -264,11 +302,39 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
             </div>
           </div>
 
-          {/* Associated company */}
-          {companyInfo && (
-            <Link href={`/companies/${companyInfo.id}`} className="block rounded-xl border border-border bg-background p-4 transition-colors hover:bg-muted/30">
-              <span className="mb-2 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Company</span>
-              <div className="flex items-center gap-3">
+          {/* Company association */}
+          <div className="rounded-xl border border-border bg-background p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Company</span>
+              {companyInfo ? (
+                <button
+                  type="button"
+                  onClick={unlinkCompany}
+                  className="flex h-5 items-center gap-1 rounded px-1.5 text-[10px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="h-2.5 w-2.5" />
+                  Unlink
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCompanyPicker(!showCompanyPicker);
+                    if (!showCompanyPicker) {
+                      fetch("/api/companies?all=true")
+                        .then((r) => r.ok ? r.json() : { companies: [] })
+                        .then((data) => setCompanyOptions(data.companies || []));
+                    }
+                  }}
+                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {companyInfo ? (
+              <Link href={`/companies/${companyInfo.id}`} className="flex items-center gap-3 rounded-lg p-2 -mx-2 transition-colors hover:bg-muted/50">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-[11px] font-semibold text-muted-foreground">
                   {companyInfo.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
                 </div>
@@ -284,9 +350,59 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
                     )}
                   </div>
                 </div>
+              </Link>
+            ) : showCompanyPicker ? (
+              <div className="relative">
+                <Building2 className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
+                <input
+                  type="text"
+                  value={companySearch}
+                  onChange={(e) => setCompanySearch(e.target.value)}
+                  placeholder="Search or create company..."
+                  className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-3 text-[12px] outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Escape") { setShowCompanyPicker(false); setCompanySearch(""); } }}
+                />
+                {companySearch.trim() && (
+                  <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
+                    {companyOptions
+                      .filter((c) => c.name.toLowerCase().includes(companySearch.toLowerCase()))
+                      .slice(0, 5)
+                      .map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => linkCompany(opt.id, opt.name)}
+                          className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-muted/50"
+                        >
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-[9px] font-semibold text-muted-foreground">
+                            {opt.name[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block text-[12px] font-medium text-foreground truncate">{opt.name}</span>
+                            {opt.domain && <span className="block text-[10px] text-muted-foreground">{opt.domain}</span>}
+                          </div>
+                        </button>
+                      ))}
+                    {!companyOptions.some((o) => o.name.toLowerCase() === companySearch.trim().toLowerCase()) && (
+                      <button
+                        type="button"
+                        onClick={() => createAndLinkCompany(companySearch.trim())}
+                        className="flex w-full items-center gap-2.5 border-t border-border px-3 py-2 text-left transition-colors hover:bg-muted/50"
+                      >
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-foreground text-background">
+                          <Plus className="h-3 w-3" />
+                        </div>
+                        <span className="text-[12px] font-medium text-foreground">Create &quot;{companySearch.trim()}&quot;</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            </Link>
-          )}
+            ) : (
+              <p className="text-[12px] text-muted-foreground/40">No company linked</p>
+            )}
+          </div>
 
           {/* Tags */}
           <div className="rounded-xl border border-border bg-background p-5">

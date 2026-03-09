@@ -17,6 +17,7 @@ interface Contact {
   firstName: string | null;
   lastName: string | null;
   company: string | null;
+  companyId: string | null;
   jobTitle: string | null;
   phone: string | null;
   subscribed: boolean;
@@ -408,10 +409,17 @@ export default function ContactsPage() {
                       {visibleCols.has("company") && (
                         <td className="px-4 hidden md:table-cell">
                           {contact.company ? (
-                            <div className="flex items-center gap-1.5">
-                              <Building2 className="h-3 w-3 text-muted-foreground/50" />
-                              <span className="text-[12px] text-muted-foreground truncate max-w-[140px]">{contact.company}</span>
-                            </div>
+                            contact.companyId ? (
+                              <Link href={`/companies/${contact.companyId}`} className="flex items-center gap-1.5 group/company">
+                                <Building2 className="h-3 w-3 text-muted-foreground/50" />
+                                <span className="text-[12px] text-muted-foreground truncate max-w-[140px] group-hover/company:underline group-hover/company:text-foreground">{contact.company}</span>
+                              </Link>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <Building2 className="h-3 w-3 text-muted-foreground/50" />
+                                <span className="text-[12px] text-muted-foreground truncate max-w-[140px]">{contact.company}</span>
+                              </div>
+                            )
                           ) : (
                             <span className="text-[12px] text-muted-foreground/30">—</span>
                           )}
