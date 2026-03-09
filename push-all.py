@@ -34,7 +34,7 @@ def main():
 
     # Collect all files (respect .gitignore patterns manually)
     ignore_dirs = {".git", "node_modules", ".next", ".vercel", ".turbo", "__pycache__", ".env", ".env.local"}
-    ignore_files = {".env", ".env.local", ".env.production", ".DS_Store"}
+    ignore_files = {".env", ".env.local", ".env.production", ".DS_Store", "package.json", "package-lock.json", "drizzle.config.ts", "tsconfig.json", "next.config.ts", "postcss.config.js", "eslint.config.mjs", "components.json", "next-env.d.ts", "README.md"}
 
     blobs = []
     for dirpath, dirnames, filenames in os.walk(root):
