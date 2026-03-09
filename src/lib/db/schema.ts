@@ -61,6 +61,9 @@ export const users = pgTable("users", {
   senderName: text("sender_name"),
   senderEmail: text("sender_email"),
   sesDomainVerified: boolean("ses_domain_verified").default(false),
+  aiProvider: text("ai_provider"),
+  aiApiKey: text("ai_api_key"),
+  aiModel: text("ai_model"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

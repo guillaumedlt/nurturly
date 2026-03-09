@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, GripVertical, Tag, Lock, Mail, User, Building2, Briefcase, Phone, Globe, Shield, Crown, UserPlus, LogOut, MoreHorizontal, Check, X, Copy } from "lucide-react";
+import { Plus, Trash2, GripVertical, Tag, Lock, Mail, User, Building2, Briefcase, Phone, Globe, Shield, Crown, UserPlus, LogOut, MoreHorizontal, Check, X, Copy, Bot, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +51,34 @@ const COMPANY_BUILTINS = [
   { name: "website", label: "Website", type: "URL", icon: Globe, required: false },
 ];
 
-type TabKey = "contact-properties" | "company-properties" | "profile" | "team";
+type TabKey = "contact-properties" | "company-properties" | "profile" | "team" | "ai";
+
+const AI_PROVIDERS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic (Claude)" },
+  { value: "google", label: "Google (Gemini)" },
+];
+
+const AI_MODELS: Record<string, { value: string; label: string }[]> = {
+  openai: [
+    { value: "gpt-4o", label: "GPT-4o" },
+    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+    { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+    { value: "o3-mini", label: "o3-mini" },
+  ],
+  anthropic: [
+    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
+    { value: "claude-opus-4-20250514", label: "Claude Opus 4" },
+    { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
+  ],
+  google: [
+    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+    { value: "gemini-2.5-pro-preview-06-05", label: "Gemini 2.5 Pro" },
+    { value: "gemini-2.5-flash-preview-05-20", label: "Gemini 2.5 Flash" },
+    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+  ],
+};
 
 interface Profile {
   id: string;
@@ -110,6 +137,16 @@ export default function SettingsPage() {
   const [teamLoading, setTeamLoading] = useState(true);
   const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
 
+  // AI state
+  const [aiProvider, setAiProvider] = useState<string>("");
+  const [aiApiKey, setAiApiKey] = useState<string>("");
+  const [aiModel, setAiModel] = useState<string>("");
+  const [aiHasKey, setAiHasKey] = useState(false);
+  const [aiMaskedKey, setAiMaskedKey] = useState<string | null>(null);
+  const [aiShowKey, setAiShowKey] = useState(false);
+  const [savingAi, setSavingAi] = useState(false);
+  const [aiLoaded, setAiLoaded] = useState(false);
+
   const fetchProperties = useCallback(async () => {
     const [contactRes, companyRes] = await Promise.all([
       fetch("/api/contact-properties"),
@@ -160,10 +197,54 @@ export default function SettingsPage() {
     }
   }, []);
 
+  // Fetch AI settings
+  const fetchAiSettings = useCallback(async () => {
+    const res = await fetch("/api/settings/ai");
+    if (res.ok) {
+      const data = await res.json();
+      setAiProvider(data.provider || "");
+      setAiModel(data.model || "");
+      setAiHasKey(data.hasApiKey);
+      setAiMaskedKey(data.apiKey);
+      setAiLoaded(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeTab === "profile" && !profile) fetchProfile();
     if (activeTab === "team") fetchTeam();
-  }, [activeTab, profile, fetchProfile, fetchTeam]);
+    if (activeTab === "ai" && !aiLoaded) fetchAiSettings();
+  }, [activeTab, profile, fetchProfile, fetchTeam, aiLoaded, fetchAiSettings]);
+
+  const handleSaveAi = async () => {
+    setSavingAi(true);
+    try {
+      const payload: Record<string, unknown> = { provider: aiProvider || null, model: aiModel || null };
+      // Only send apiKey if user typed a new one
+      if (aiApiKey) payload.apiKey = aiApiKey;
+      // If provider cleared, also clear key
+      if (!aiProvider) payload.apiKey = null;
+
+      const res = await fetch("/api/settings/ai", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        toast.success("AI settings saved");
+        setAiApiKey("");
+        setAiShowKey(false);
+        fetchAiSettings();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to save AI settings");
+      }
+    } catch {
+      toast.error("Failed to save AI settings");
+    } finally {
+      setSavingAi(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -526,6 +607,7 @@ export default function SettingsPage() {
         {[
           { key: "profile" as TabKey, label: "Profile" },
           { key: "team" as TabKey, label: "Team" },
+          { key: "ai" as TabKey, label: "AI" },
           { key: "contact-properties" as TabKey, label: "Contact Properties" },
           { key: "company-properties" as TabKey, label: "Company Properties" },
         ].map((tab) => (
@@ -791,6 +873,131 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* AI Tab */}
+      {activeTab === "ai" && (
+        <div className="space-y-6">
+          {!aiLoaded ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl border border-border bg-background p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Bot className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-[13px] font-medium text-foreground">AI Configuration</h3>
+                </div>
+                <p className="text-[12px] text-muted-foreground mb-5">
+                  Connect your LLM API key to use AI-powered template generation. Your key is stored securely and never shared.
+                </p>
+
+                <div className="space-y-4">
+                  {/* Provider */}
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                      Provider
+                    </label>
+                    <select
+                      value={aiProvider}
+                      onChange={(e) => {
+                        setAiProvider(e.target.value);
+                        setAiModel("");
+                      }}
+                      className="h-9 w-full max-w-[320px] rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Select a provider...</option>
+                      {AI_PROVIDERS.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Model */}
+                  {aiProvider && (
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                        Model
+                      </label>
+                      <select
+                        value={aiModel}
+                        onChange={(e) => setAiModel(e.target.value)}
+                        className="h-9 w-full max-w-[320px] rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="">Select a model...</option>
+                        {(AI_MODELS[aiProvider] || []).map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* API Key */}
+                  {aiProvider && (
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                        API Key
+                      </label>
+                      {aiHasKey && !aiApiKey && (
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
+                            Connected
+                          </span>
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            {aiMaskedKey}
+                          </span>
+                        </div>
+                      )}
+                      <div className="relative max-w-[320px]">
+                        <input
+                          type={aiShowKey ? "text" : "password"}
+                          value={aiApiKey}
+                          onChange={(e) => setAiApiKey(e.target.value)}
+                          placeholder={aiHasKey ? "Enter new key to replace..." : "sk-... or AIza..."}
+                          className="h-9 w-full rounded-md border border-input bg-background pl-3 pr-10 font-mono text-[12px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 placeholder:font-sans"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAiShowKey(!aiShowKey)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                        >
+                          {aiShowKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-muted-foreground/60">
+                        {aiProvider === "openai" && "Get your API key from platform.openai.com/api-keys"}
+                        {aiProvider === "anthropic" && "Get your API key from console.anthropic.com/settings/keys"}
+                        {aiProvider === "google" && "Get your API key from aistudio.google.com/apikey"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <Button
+                    size="sm"
+                    className="h-8 text-[12px]"
+                    onClick={handleSaveAi}
+                    disabled={savingAi || (!aiProvider && !aiHasKey)}
+                  >
+                    {savingAi ? "Saving..." : "Save settings"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="rounded-xl border border-border bg-muted/30 p-5">
+                <h4 className="text-[12px] font-medium text-foreground mb-2">How it works</h4>
+                <ul className="space-y-1.5 text-[12px] text-muted-foreground">
+                  <li>1. Select your preferred AI provider and model</li>
+                  <li>2. Enter your API key (stored server-side, never exposed to the browser)</li>
+                  <li>3. Go to Emails → Templates → "Generate with AI" to create templates from a prompt</li>
+                </ul>
+              </div>
+            </>
           )}
         </div>
       )}

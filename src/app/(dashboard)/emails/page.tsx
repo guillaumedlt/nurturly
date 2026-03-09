@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Trash2, Loader2, Mail, Search, FileText, Copy, LayoutTemplate } from "lucide-react";
+import { Plus, Trash2, Loader2, Mail, Search, FileText, Copy, LayoutTemplate, Sparkles } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FolderNav, MoveToFolderDropdown, type Folder } from "@/components/shared/folder-nav";
@@ -30,6 +30,9 @@ export default function EmailsPage() {
   const [search, setSearch] = useState("");
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -141,6 +144,48 @@ export default function EmailsPage() {
     } catch {
       toast.error("Failed to create template");
       setCreating(false);
+    }
+  };
+
+  const generateWithAi = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiGenerating(true);
+    try {
+      const res = await fetch("/api/ai/generate-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiPrompt.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error || "AI generation failed");
+        setAiGenerating(false);
+        return;
+      }
+      const generated = await res.json();
+
+      // Create a new template with the generated content
+      const createRes = await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: aiPrompt.trim().slice(0, 60),
+          subject: generated.subject,
+          isTemplate: true,
+          editorContent: JSON.stringify(generated.content),
+        }),
+      });
+      if (createRes.ok) {
+        const email = await createRes.json();
+        toast.success("Template generated!");
+        window.location.href = `/emails/${email.id}`;
+      } else {
+        toast.error("Failed to save generated template");
+        setAiGenerating(false);
+      }
+    } catch {
+      toast.error("AI generation failed");
+      setAiGenerating(false);
     }
   };
 
@@ -256,15 +301,26 @@ export default function EmailsPage() {
         </div>
         <div className="flex items-center gap-2">
           {tab === "templates" ? (
-            <button
-              type="button"
-              onClick={createTemplate}
-              disabled={creating}
-              className="flex h-8 items-center gap-1.5 rounded-md bg-foreground px-3 text-[12px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-              New template
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAiDialog(true)}
+                disabled={creating || aiGenerating}
+                className="flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Generate with AI
+              </button>
+              <button
+                type="button"
+                onClick={createTemplate}
+                disabled={creating}
+                className="flex h-8 items-center gap-1.5 rounded-md bg-foreground px-3 text-[12px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                New template
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -442,6 +498,69 @@ export default function EmailsPage() {
           onTemplate={createFromTemplate}
           onClose={() => setShowNewDialog(false)}
         />
+      )}
+
+      {/* AI generation dialog */}
+      {showAiDialog && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/40" onClick={() => !aiGenerating && setShowAiDialog(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-[480px] rounded-xl border border-border bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="border-b border-border px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-[14px] font-semibold text-foreground">Generate template with AI</h3>
+                </div>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">Describe the email you want and AI will create an optimized template</p>
+              </div>
+              <div className="p-5 space-y-3">
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="E.g. Welcome email for new SaaS users with a CTA to complete their profile setup..."
+                  rows={4}
+                  disabled={aiGenerating}
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 disabled:opacity-50"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) generateWithAi();
+                  }}
+                />
+                <p className="text-[10px] text-muted-foreground/50">
+                  Press Cmd+Enter to generate. Requires AI to be configured in Settings.
+                </p>
+              </div>
+              <div className="border-t border-border px-5 py-3 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowAiDialog(false); setAiPrompt(""); }}
+                  disabled={aiGenerating}
+                  className="rounded-md px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={generateWithAi}
+                  disabled={!aiPrompt.trim() || aiGenerating}
+                  className="flex items-center gap-1.5 rounded-md bg-foreground px-4 py-1.5 text-[12px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {aiGenerating ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Generate
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Delete confirm */}
