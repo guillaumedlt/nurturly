@@ -246,6 +246,7 @@ export const emails = pgTable("emails", {
   preheaderText: text("preheader_text"),
   editorContent: text("editor_content").notNull(),
   htmlContent: text("html_content"),
+  isTemplate: boolean("is_template").default(false).notNull(),
   folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

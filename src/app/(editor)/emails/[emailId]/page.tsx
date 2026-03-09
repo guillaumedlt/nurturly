@@ -41,6 +41,7 @@ interface EmailData {
   preheaderText: string | null;
   editorContent: string;
   htmlContent: string | null;
+  isTemplate: boolean;
 }
 
 export default function EmailEditorPage() {
@@ -208,6 +209,8 @@ export default function EmailEditorPage() {
         lastSaved={lastSaved}
         hasUnsavedChanges={hasUnsavedChanges}
         onSendTest={() => setSendTestOpen(true)}
+        isTemplate={email.isTemplate}
+        emailId={email.id}
       />
 
       <div className="flex-1 overflow-auto bg-muted/30">

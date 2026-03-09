@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowLeft, Save, Eye, Pencil, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Save, Eye, Pencil, Loader2, Send, Copy } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 
 interface EditorTopBarProps {
   name: string;
@@ -14,6 +15,8 @@ interface EditorTopBarProps {
   lastSaved: Date | null;
   hasUnsavedChanges?: boolean;
   onSendTest?: () => void;
+  isTemplate?: boolean;
+  emailId?: string;
 }
 
 export function EditorTopBar({
@@ -26,13 +29,41 @@ export function EditorTopBar({
   lastSaved,
   hasUnsavedChanges,
   onSendTest,
+  isTemplate,
+  emailId,
 }: EditorTopBarProps) {
   const [editingName, setEditingName] = useState(false);
+  const [savingAsTemplate, setSavingAsTemplate] = useState(false);
 
   const handleNameBlur = useCallback(() => {
     setEditingName(false);
-    if (!name.trim()) onNameChange("Untitled email");
-  }, [name, onNameChange]);
+    if (!name.trim()) onNameChange(isTemplate ? "Untitled template" : "Untitled email");
+  }, [name, onNameChange, isTemplate]);
+
+  const saveAsTemplate = async () => {
+    if (!emailId) return;
+    setSavingAsTemplate(true);
+    try {
+      const res = await fetch("/api/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${name} (template)`,
+          templateId: emailId,
+          isTemplate: true,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Saved as template");
+      } else {
+        toast.error("Failed to save as template");
+      }
+    } catch {
+      toast.error("Failed to save as template");
+    } finally {
+      setSavingAsTemplate(false);
+    }
+  };
 
   return (
     <div className="flex h-14 items-center justify-between border-b border-border bg-background px-4">
@@ -63,8 +94,14 @@ export function EditorTopBar({
             onClick={() => setEditingName(true)}
             className="text-[14px] font-medium text-foreground hover:text-muted-foreground transition-colors"
           >
-            {name || "Untitled email"}
+            {name || (isTemplate ? "Untitled template" : "Untitled email")}
           </button>
+        )}
+
+        {isTemplate && (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            Template
+          </span>
         )}
 
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60">
@@ -114,6 +151,19 @@ export function EditorTopBar({
           </button>
         </div>
 
+        {/* Save as template (only for emails, not templates) */}
+        {!isTemplate && emailId && (
+          <button
+            type="button"
+            onClick={saveAsTemplate}
+            disabled={savingAsTemplate}
+            className="hidden sm:flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            {savingAsTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+            Save as template
+          </button>
+        )}
+
         {/* Send test */}
         {onSendTest && (
           <button
@@ -122,7 +172,7 @@ export function EditorTopBar({
             className="flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Send className="h-3 w-3" />
-            Send test
+            <span className="hidden sm:inline">Send test</span>
           </button>
         )}
 
