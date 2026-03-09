@@ -141,7 +141,7 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className="text-[13px] font-medium text-foreground">Campaigns</p>
-            <p className="text-[11px] text-muted-foreground">{data?.activeCampaigns || 0} total</p>
+            <p className="text-[11px] text-muted-foreground">Hub overview</p>
           </div>
         </Link>
         <Link

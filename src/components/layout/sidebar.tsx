@@ -14,16 +14,19 @@ import {
   Search,
   Menu,
   X,
+  Megaphone,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/lists", label: "Audiences", icon: ListFilter },
   { href: "/emails", label: "Emails", icon: Mail },
-  { href: "/campaigns", label: "Campaigns", icon: Send },
+  { href: "/transactional", label: "Transactional", icon: Zap },
   { href: "/sequences", label: "Sequences", icon: GitBranch },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];

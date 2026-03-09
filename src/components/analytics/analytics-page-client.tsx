@@ -280,7 +280,7 @@ function CampaignTable({ campaigns }: {
   campaigns: AnalyticsData["topCampaigns"];
 }) {
   if (campaigns.length === 0) {
-    return <p className="py-6 text-center text-[12px] text-muted-foreground">No sent campaigns yet</p>;
+    return <p className="py-6 text-center text-[12px] text-muted-foreground">No sent emails yet</p>;
   }
 
   return (
@@ -288,7 +288,7 @@ function CampaignTable({ campaigns }: {
       <table className="w-full">
         <thead>
           <tr className="border-b border-border">
-            <th className="px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Campaign</th>
+            <th className="px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Email</th>
             <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sent</th>
             <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Open rate</th>
             <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Click rate</th>
@@ -476,7 +476,7 @@ export function AnalyticsPageClient() {
       <div>
         <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">Analytics</h2>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          Performance overview across all campaigns and sequences.
+          Performance overview across all transactional emails and sequences.
         </p>
       </div>
 
@@ -493,7 +493,7 @@ export function AnalyticsPageClient() {
           label="Emails sent"
           value={formatNum(overview.emails.totalSent)}
           icon={Send}
-          subtitle={`${overview.campaigns.total} campaigns`}
+          subtitle={`${overview.campaigns.total} transactional`}
         />
         <MetricCard
           label="Open rate"
@@ -613,7 +613,7 @@ export function AnalyticsPageClient() {
         <div className="border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-[12px] font-semibold text-foreground">Campaign performance</span>
+            <span className="text-[12px] font-semibold text-foreground">Transactional performance</span>
           </div>
         </div>
         <CampaignTable campaigns={data.topCampaigns} />

@@ -10,29 +10,32 @@ const routeNames: Record<string, string> = {
   "/contacts": "Contacts",
   "/lists": "Audiences",
   "/campaigns": "Campaigns",
-  "/campaigns/new": "New Campaign",
+  "/transactional": "Transactional",
+  "/transactional/new": "New Email",
   "/sequences": "Sequences",
   "/sequences/new": "New Sequence",
+  "/emails": "Emails",
   "/analytics": "Analytics",
   "/settings": "Settings",
 };
 
 function getPageTitle(pathname: string): string {
   if (routeNames[pathname]) return routeNames[pathname];
-  if (pathname.startsWith("/campaigns/") && pathname.endsWith("/analytics"))
-    return "Campaign Analytics";
-  if (pathname.startsWith("/campaigns/")) return "Edit Campaign";
+  if (pathname.startsWith("/transactional/") && pathname.endsWith("/analytics"))
+    return "Email Analytics";
+  if (pathname.startsWith("/transactional/")) return "Edit Email";
   if (pathname.startsWith("/sequences/") && pathname.endsWith("/analytics"))
     return "Sequence Analytics";
   if (pathname.startsWith("/sequences/")) return "Edit Sequence";
   if (pathname.startsWith("/contacts/")) return "Contact Detail";
   if (pathname.startsWith("/lists/")) return "Audience Detail";
+  if (pathname.startsWith("/campaigns/")) return "Campaigns";
   return "Nurturly";
 }
 
 function getBreadcrumb(pathname: string): { parent: string; parentHref: string } | null {
-  if (pathname.startsWith("/campaigns/") && pathname !== "/campaigns")
-    return { parent: "Campaigns", parentHref: "/campaigns" };
+  if (pathname.startsWith("/transactional/") && pathname !== "/transactional")
+    return { parent: "Transactional", parentHref: "/transactional" };
   if (pathname.startsWith("/sequences/") && pathname !== "/sequences")
     return { parent: "Sequences", parentHref: "/sequences" };
   if (pathname.startsWith("/contacts/") && pathname !== "/contacts")

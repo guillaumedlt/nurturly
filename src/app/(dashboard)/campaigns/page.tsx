@@ -1,5 +1,5 @@
-import { CampaignsPageClient } from "@/components/campaigns/campaigns-page-client";
+import { CampaignsHubClient } from "@/components/campaigns/campaigns-hub-client";
 
 export default function CampaignsPage() {
-  return <CampaignsPageClient />;
+  return <CampaignsHubClient />;
 }

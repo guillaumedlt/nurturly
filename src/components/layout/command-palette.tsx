@@ -15,11 +15,13 @@ import {
   LayoutDashboard,
   Users,
   ListFilter,
-  Send,
+  Zap,
   GitBranch,
   BarChart3,
   Settings,
   Plus,
+  Megaphone,
+  Mail,
 } from "lucide-react";
 
 export function CommandPalette() {
@@ -52,6 +54,10 @@ export function CommandPalette() {
             <LayoutDashboard className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-[13px]">Dashboard</span>
           </CommandItem>
+          <CommandItem onSelect={() => navigate("/campaigns")}>
+            <Megaphone className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[13px]">Campaigns</span>
+          </CommandItem>
           <CommandItem onSelect={() => navigate("/contacts")}>
             <Users className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-[13px]">Contacts</span>
@@ -60,9 +66,13 @@ export function CommandPalette() {
             <ListFilter className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-[13px]">Audiences</span>
           </CommandItem>
-          <CommandItem onSelect={() => navigate("/campaigns")}>
-            <Send className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-[13px]">Campaigns</span>
+          <CommandItem onSelect={() => navigate("/emails")}>
+            <Mail className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[13px]">Emails</span>
+          </CommandItem>
+          <CommandItem onSelect={() => navigate("/transactional")}>
+            <Zap className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[13px]">Transactional</span>
           </CommandItem>
           <CommandItem onSelect={() => navigate("/sequences")}>
             <GitBranch className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -79,9 +89,9 @@ export function CommandPalette() {
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Quick Actions">
-          <CommandItem onSelect={() => navigate("/campaigns/new")}>
+          <CommandItem onSelect={() => navigate("/transactional/new")}>
             <Plus className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-[13px]">New Campaign</span>
+            <span className="text-[13px]">New Transactional Email</span>
           </CommandItem>
           <CommandItem onSelect={() => navigate("/sequences/new")}>
             <Plus className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
