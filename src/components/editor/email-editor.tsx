@@ -9,6 +9,7 @@ import Color from "@tiptap/extension-color";
 import TextStyle from "@tiptap/extension-text-style";
 import Placeholder from "@tiptap/extension-placeholder";
 import UnderlineExt from "@tiptap/extension-underline";
+import FontFamily from "@tiptap/extension-font-family";
 import { useCallback, useRef, useState, useEffect } from "react";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
@@ -561,6 +562,7 @@ export function EmailEditor({ content, onUpdate, emailStyles }: EmailEditorProps
       Color,
       TextStyle,
       FontSize,
+      FontFamily,
       UnderlineExt,
       Placeholder.configure({
         placeholder: ({ node, pos, editor: ed }) => {
