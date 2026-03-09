@@ -45,6 +45,10 @@ export const contactSourceEnum = pgEnum("contact_source", [
   "manual", "import", "api",
 ]);
 
+export const propertyTypeEnum = pgEnum("property_type", [
+  "text", "number", "date", "select", "multi_select", "boolean", "url", "email", "phone",
+]);
+
 // ── NextAuth tables ──
 
 export const users = pgTable("users", {
@@ -110,6 +114,24 @@ export const contacts = pgTable("contacts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("contacts_user_email_idx").on(table.userId, table.email),
+]);
+
+// ── Contact Properties (custom fields) ──
+
+export const contactProperties = pgTable("contact_properties", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  label: text("label").notNull(),
+  type: propertyTypeEnum("type").notNull().default("text"),
+  groupName: text("group_name").notNull().default("Custom"),
+  options: text("options"), // JSON array for select/multi_select
+  required: boolean("required").default(false).notNull(),
+  position: integer("position").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("contact_prop_user_name_idx").on(table.userId, table.name),
+  index("contact_prop_user_idx").on(table.userId, table.position),
 ]);
 
 // ── Lists / Segments ──
