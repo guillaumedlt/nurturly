@@ -1,223 +1,116 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
+  Plus,
   Loader2,
+  Trash2,
+  Search,
+  Megaphone,
   Zap,
   GitBranch,
   ListFilter,
-  Users,
-  Send,
-  Eye,
-  MousePointerClick,
-  ArrowUpRight,
-  ArrowDownRight,
-  type LucideIcon,
-  Plus,
   ChevronRight,
 } from "lucide-react";
+import { formatRelativeDate } from "@/lib/utils";
+import { EmptyState } from "@/components/shared/empty-state";
 
-/* --- Types --- */
-
-interface HubData {
-  // Transactional
-  transactional: {
-    total: number;
-    sent: number;
-    draft: number;
-    recent: { id: string; name: string; status: string; totalSent: number; sentAt: string | null }[];
-  };
-  // Sequences
-  sequences: {
-    total: number;
-    active: number;
-    totalEnrolled: number;
-    recent: { id: string; name: string; status: string; totalEnrolled: number | null }[];
-  };
-  // Audiences
-  audiences: {
-    total: number;
-    totalContacts: number;
-    recent: { id: string; name: string; contactCount: number }[];
-  };
-  // Combined metrics
-  metrics: {
-    totalSent: number;
-    totalOpened: number;
-    totalClicked: number;
-    openRate: number;
-    clickRate: number;
+interface CampaignRow {
+  id: string;
+  name: string;
+  description: string | null;
+  status: "draft" | "active" | "completed" | "archived";
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: {
+    transactional: number;
+    sequence: number;
+    audience: number;
   };
 }
 
-/* --- Components --- */
+type StatusFilter = "" | "draft" | "active" | "completed" | "archived";
 
-function MetricCard({
-  label,
-  value,
-  icon: Icon,
-  change,
-}: {
-  label: string;
-  value: string;
-  icon: LucideIcon;
-  change?: { value: string; positive: boolean } | null;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-background p-4 transition-colors hover:bg-muted/30">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
-        <Icon className="h-3.5 w-3.5 text-muted-foreground/50" strokeWidth={1.5} />
-      </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <p className="text-[24px] font-semibold tracking-tight text-foreground">{value}</p>
-        {change && (
-          <span className={`flex items-center text-[11px] ${change.positive ? "text-green-600" : "text-red-500"}`}>
-            {change.positive ? <ArrowUpRight className="mr-0.5 h-3 w-3" /> : <ArrowDownRight className="mr-0.5 h-3 w-3" />}
-            {change.value}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
+const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
+  { label: "All", value: "" },
+  { label: "Draft", value: "draft" },
+  { label: "Active", value: "active" },
+  { label: "Completed", value: "completed" },
+];
 
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  iconColor,
-  href,
-  createHref,
-  createLabel,
-  stat,
-  statLabel,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  iconColor: string;
-  href: string;
-  createHref: string;
-  createLabel: string;
-  stat: number;
-  statLabel: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-background">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg"
-            style={{ backgroundColor: iconColor + "15", color: iconColor }}
-          >
-            <Icon className="h-4 w-4" />
-          </div>
-          <div>
-            <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
-            <p className="text-[11px] text-muted-foreground">{description}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-muted-foreground tabular-nums">
-            {stat} {statLabel}
-          </span>
-          <Link
-            href={createHref}
-            className="flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            <Plus className="h-3 w-3" />
-            {createLabel}
-          </Link>
-        </div>
-      </div>
-
-      {children}
-
-      <div className="border-t border-border px-4 py-2">
-        <Link
-          href={href}
-          className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          View all
-          <ChevronRight className="h-3 w-3" />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function formatNum(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
-}
-
-function formatPct(n: number): string {
-  return `${(n * 100).toFixed(1)}%`;
-}
-
-/* --- Main --- */
+const STATUS_COLORS: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  active: "bg-green-500/10 text-green-600",
+  completed: "bg-blue-500/10 text-blue-600",
+  archived: "bg-muted text-muted-foreground",
+};
 
 export function CampaignsHubClient() {
-  const [data, setData] = useState<HubData | null>(null);
+  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
+  const [search, setSearch] = useState("");
+
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      const res = await fetch("/api/marketing-campaigns");
+      if (res.ok) {
+        const data = await res.json();
+        setCampaigns(data.campaigns);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function load() {
-      try {
-        // Fetch all data in parallel
-        const [analyticsRes, campaignsRes, sequencesRes, listsRes] = await Promise.all([
-          fetch("/api/analytics"),
-          fetch("/api/campaigns"),
-          fetch("/api/sequences"),
-          fetch("/api/lists"),
-        ]);
+    fetchCampaigns();
+  }, [fetchCampaigns]);
 
-        const analytics = analyticsRes.ok ? await analyticsRes.json() : null;
-        const campaignsData = campaignsRes.ok ? await campaignsRes.json() : null;
-        const sequencesData = sequencesRes.ok ? await sequencesRes.json() : null;
-        const listsData = listsRes.ok ? await listsRes.json() : null;
-
-        const campaigns = campaignsData?.campaigns || [];
-        const sequences = sequencesData?.sequences || [];
-        const lists = Array.isArray(listsData) ? listsData : listsData?.lists || [];
-
-        setData({
-          transactional: {
-            total: campaigns.length,
-            sent: campaigns.filter((c: { status: string }) => c.status === "sent").length,
-            draft: campaigns.filter((c: { status: string }) => c.status === "draft").length,
-            recent: campaigns.slice(0, 5),
-          },
-          sequences: {
-            total: sequences.length,
-            active: sequences.filter((s: { status: string }) => s.status === "active").length,
-            totalEnrolled: analytics?.overview?.sequences?.totalEnrolled || 0,
-            recent: sequences.slice(0, 5),
-          },
-          audiences: {
-            total: lists.length,
-            totalContacts: lists.reduce((acc: number, l: { contactCount: number }) => acc + (l.contactCount || 0), 0),
-            recent: lists.slice(0, 5),
-          },
-          metrics: {
-            totalSent: analytics?.overview?.emails?.totalSent || 0,
-            totalOpened: analytics?.overview?.emails?.totalOpened || 0,
-            totalClicked: analytics?.overview?.emails?.totalClicked || 0,
-            openRate: analytics?.overview?.emails?.openRate || 0,
-            clickRate: analytics?.overview?.emails?.clickRate || 0,
-          },
-        });
-      } finally {
-        setLoading(false);
-      }
+  const filtered = useMemo(() => {
+    let result = campaigns;
+    if (statusFilter) {
+      result = result.filter((c) => c.status === statusFilter);
     }
-    load();
-  }, []);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.description?.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [campaigns, statusFilter, search]);
+
+  const createCampaign = async () => {
+    setCreating(true);
+    try {
+      const res = await fetch("/api/marketing-campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Untitled campaign" }),
+      });
+      if (res.ok) {
+        const campaign = await res.json();
+        window.location.href = `/campaigns/${campaign.id}`;
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const deleteCampaign = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm("Delete this campaign?")) return;
+    await fetch(`/api/marketing-campaigns/${id}`, { method: "DELETE" });
+    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+  };
 
   if (loading) {
     return (
@@ -227,171 +120,172 @@ export function CampaignsHubClient() {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="py-20 text-center text-[13px] text-muted-foreground">
-        Failed to load data.
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">Campaigns</h2>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">
-          Overview of all your marketing channels — transactional emails, sequences, and audiences.
-        </p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-foreground">
+            Campaigns
+          </h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            Organize sequences, transactional emails, and audiences into campaigns.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={createCampaign}
+          disabled={creating}
+          className="flex h-8 items-center gap-1.5 rounded-md bg-foreground px-3 text-[12px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {creating ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+          New campaign
+        </button>
       </div>
 
-      {/* Top metrics */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricCard
-          label="Total sent"
-          value={formatNum(data.metrics.totalSent)}
-          icon={Send}
+      {campaigns.length === 0 ? (
+        <EmptyState
+          icon={Megaphone}
+          title="No campaigns yet"
+          description="Create your first campaign to group sequences, emails, and audiences together."
+          actionLabel="Create campaign"
+          onAction={createCampaign}
         />
-        <MetricCard
-          label="Open rate"
-          value={data.metrics.totalSent > 0 ? formatPct(data.metrics.openRate) : "\u2014"}
-          icon={Eye}
-        />
-        <MetricCard
-          label="Click rate"
-          value={data.metrics.totalSent > 0 ? formatPct(data.metrics.clickRate) : "\u2014"}
-          icon={MousePointerClick}
-        />
-        <MetricCard
-          label="Total contacts"
-          value={formatNum(data.audiences.totalContacts)}
-          icon={Users}
-        />
-      </div>
+      ) : (
+        <>
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative max-w-[220px] flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search campaigns..."
+                className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-3 text-[12px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setStatusFilter(f.value)}
+                  className={`rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
+                    statusFilter === f.value
+                      ? "bg-foreground text-background"
+                      : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Transactional emails section */}
-      <SectionCard
-        title="Transactional Emails"
-        description="One-off newsletters and broadcast emails"
-        icon={Zap}
-        iconColor="#8b5cf6"
-        href="/transactional"
-        createHref="/transactional/new"
-        createLabel="New"
-        stat={data.transactional.total}
-        statLabel="total"
-      >
-        {data.transactional.recent.length > 0 ? (
-          <div className="divide-y divide-border">
-            {data.transactional.recent.map((item) => (
-              <Link
-                key={item.id}
-                href={`/transactional/${item.id}`}
-                className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted/30"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[13px] font-medium text-foreground truncate">{item.name}</span>
-                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
-                    item.status === "sent" ? "bg-green-500/10 text-green-600" :
-                    item.status === "scheduled" ? "bg-blue-500/10 text-blue-600" :
-                    "bg-muted text-muted-foreground"
-                  }`}>
-                    {item.status}
-                  </span>
-                </div>
-                {item.totalSent > 0 && (
-                  <span className="text-[11px] text-muted-foreground tabular-nums">
-                    {formatNum(item.totalSent)} sent
-                  </span>
+          <div className="rounded-lg border border-border">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                    Name
+                  </th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground sm:table-cell">
+                    Items
+                  </th>
+                  <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground md:table-cell">
+                    Updated
+                  </th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-[13px] text-muted-foreground">
+                      No campaigns match your filters
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((campaign) => {
+                    const totalItems = campaign.items.transactional + campaign.items.sequence + campaign.items.audience;
+                    return (
+                      <tr
+                        key={campaign.id}
+                        onClick={() => (window.location.href = `/campaigns/${campaign.id}`)}
+                        className="group h-[42px] cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted/30"
+                      >
+                        <td className="px-4 py-2">
+                          <div>
+                            <span className="text-[13px] font-medium text-foreground">
+                              {campaign.name}
+                            </span>
+                            {campaign.description && (
+                              <p className="text-[11px] text-muted-foreground truncate max-w-[250px]">
+                                {campaign.description}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLORS[campaign.status]}`}>
+                            {campaign.status}
+                          </span>
+                        </td>
+                        <td className="hidden px-4 py-2 sm:table-cell">
+                          <div className="flex items-center gap-3">
+                            {campaign.items.transactional > 0 && (
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Zap className="h-3 w-3" />
+                                {campaign.items.transactional}
+                              </span>
+                            )}
+                            {campaign.items.sequence > 0 && (
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <GitBranch className="h-3 w-3" />
+                                {campaign.items.sequence}
+                              </span>
+                            )}
+                            {campaign.items.audience > 0 && (
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <ListFilter className="h-3 w-3" />
+                                {campaign.items.audience}
+                              </span>
+                            )}
+                            {totalItems === 0 && (
+                              <span className="text-[11px] text-muted-foreground/50">No items</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="hidden px-4 py-2 md:table-cell">
+                          <span className="text-[12px] text-muted-foreground">
+                            {formatRelativeDate(campaign.updatedAt)}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2">
+                          <button
+                            type="button"
+                            onClick={(e) => deleteCampaign(campaign.id, e)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
-              </Link>
-            ))}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <div className="px-4 py-6 text-center text-[12px] text-muted-foreground">
-            No transactional emails yet
-          </div>
-        )}
-      </SectionCard>
-
-      {/* Sequences section */}
-      <SectionCard
-        title="Sequences"
-        description="Automated email workflows and drip campaigns"
-        icon={GitBranch}
-        iconColor="#3b82f6"
-        href="/sequences"
-        createHref="/sequences/new"
-        createLabel="New"
-        stat={data.sequences.active}
-        statLabel="active"
-      >
-        {data.sequences.recent.length > 0 ? (
-          <div className="divide-y divide-border">
-            {data.sequences.recent.map((seq) => (
-              <Link
-                key={seq.id}
-                href={`/sequences/${seq.id}`}
-                className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted/30"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[13px] font-medium text-foreground truncate">{seq.name}</span>
-                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
-                    seq.status === "active" ? "bg-green-500/10 text-green-600" :
-                    seq.status === "paused" ? "bg-amber-500/10 text-amber-600" :
-                    "bg-muted text-muted-foreground"
-                  }`}>
-                    {seq.status}
-                  </span>
-                </div>
-                {(seq.totalEnrolled || 0) > 0 && (
-                  <span className="text-[11px] text-muted-foreground tabular-nums">
-                    {formatNum(seq.totalEnrolled || 0)} enrolled
-                  </span>
-                )}
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="px-4 py-6 text-center text-[12px] text-muted-foreground">
-            No sequences yet
-          </div>
-        )}
-      </SectionCard>
-
-      {/* Audiences section */}
-      <SectionCard
-        title="Audiences"
-        description="Contact lists and segments for targeting"
-        icon={ListFilter}
-        iconColor="#10b981"
-        href="/lists"
-        createHref="/lists"
-        createLabel="New"
-        stat={data.audiences.total}
-        statLabel="audiences"
-      >
-        {data.audiences.recent.length > 0 ? (
-          <div className="divide-y divide-border">
-            {data.audiences.recent.map((list) => (
-              <Link
-                key={list.id}
-                href={`/lists/${list.id}`}
-                className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted/30"
-              >
-                <span className="text-[13px] font-medium text-foreground truncate">{list.name}</span>
-                <span className="text-[11px] text-muted-foreground tabular-nums">
-                  {formatNum(list.contactCount)} contacts
-                </span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="px-4 py-6 text-center text-[12px] text-muted-foreground">
-            No audiences yet
-          </div>
-        )}
-      </SectionCard>
+        </>
+      )}
     </div>
   );
 }

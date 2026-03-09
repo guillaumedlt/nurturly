@@ -29,7 +29,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/sequences/")) return "Edit Sequence";
   if (pathname.startsWith("/contacts/")) return "Contact Detail";
   if (pathname.startsWith("/lists/")) return "Audience Detail";
-  if (pathname.startsWith("/campaigns/")) return "Campaigns";
+  if (pathname.startsWith("/campaigns/")) return "Campaign Detail";
   return "Nurturly";
 }
 
@@ -42,6 +42,8 @@ function getBreadcrumb(pathname: string): { parent: string; parentHref: string }
     return { parent: "Contacts", parentHref: "/contacts" };
   if (pathname.startsWith("/lists/") && pathname !== "/lists")
     return { parent: "Audiences", parentHref: "/lists" };
+  if (pathname.startsWith("/campaigns/") && pathname !== "/campaigns")
+    return { parent: "Campaigns", parentHref: "/campaigns" };
   return null;
 }
 

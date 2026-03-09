@@ -21,6 +21,14 @@ export const sequenceStatusEnum = pgEnum("sequence_status", [
   "draft", "active", "paused", "archived",
 ]);
 
+export const mcStatusEnum = pgEnum("mc_status", [
+  "draft", "active", "completed", "archived",
+]);
+
+export const mcItemTypeEnum = pgEnum("mc_item_type", [
+  "transactional", "sequence", "audience",
+]);
+
 export const enrollmentStatusEnum = pgEnum("enrollment_status", [
   "active", "completed", "paused", "unsubscribed", "bounced",
 ]);
@@ -216,6 +224,31 @@ export const sequenceEnrollments = pgTable("sequence_enrollments", {
 }, (table) => [
   uniqueIndex("enrollment_unique_idx").on(table.sequenceId, table.contactId),
   index("enrollment_next_step_idx").on(table.status, table.nextStepScheduledAt),
+]);
+
+// ── Marketing Campaigns ──
+
+export const marketingCampaigns = pgTable("marketing_campaigns", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: mcStatusEnum("status").notNull().default("draft"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const marketingCampaignItems = pgTable("marketing_campaign_items", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  campaignId: text("campaign_id").notNull().references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+  itemType: mcItemTypeEnum("item_type").notNull(),
+  itemId: text("item_id").notNull(),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("mc_item_unique_idx").on(table.campaignId, table.itemType, table.itemId),
+  index("mc_item_campaign_idx").on(table.campaignId),
 ]);
 
 // ── Analytics Events ──
