@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { contacts, listMemberships, lists, analyticsEvents, sequenceEnrollments, sequences } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -79,7 +80,8 @@ export async function PATCH(
   }
 
   const { contactId } = await params;
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
 
   // Build update object from body
   const updates: Record<string, unknown> = { updatedAt: new Date() };

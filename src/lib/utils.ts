@@ -5,6 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function formatPropValue(value: unknown, type: string): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (type === "boolean") return value === true || value === "true" ? "Yes" : "No";
+  if (type === "date" && typeof value === "string") {
+    try { return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); } catch { return String(value); }
+  }
+  if (type === "multi_select" && Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
 export function formatRelativeDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   const now = new Date();

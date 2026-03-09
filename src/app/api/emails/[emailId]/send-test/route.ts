@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { emails } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { Resend } from "resend";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 
 export async function POST(
   request: NextRequest,
@@ -22,7 +23,9 @@ export async function POST(
   }
 
   const { emailId } = await params;
-  const { to } = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
+  const { to } = body;
 
   if (!to || typeof to !== "string" || !to.includes("@")) {
     return NextResponse.json({ error: "Valid email address required" }, { status: 400 });

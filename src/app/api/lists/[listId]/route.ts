@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { lists } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 
 export async function GET(
   _request: NextRequest,
@@ -35,7 +36,8 @@ export async function PATCH(
   }
 
   const { listId } = await params;
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
 
   const [updated] = await db.update(lists)
     .set({

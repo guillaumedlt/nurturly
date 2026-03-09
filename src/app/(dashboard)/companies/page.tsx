@@ -5,7 +5,7 @@ import { Plus, Building2, Search, Trash2, ChevronLeft, ChevronRight, Globe, User
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatRelativeDate } from "@/lib/utils";
+import { formatRelativeDate, formatPropValue } from "@/lib/utils";
 import Link from "next/link";
 
 interface CompanyProperty {
@@ -158,15 +158,6 @@ export default function CompaniesPage() {
   const activeBuiltinCols = BUILTIN_COLUMNS.filter((c) => visibleCols.has(c.key));
   const totalCols = 2 + activeBuiltinCols.length + activeCustomCols.length + 1;
 
-  const formatPropValue = (value: unknown, type: string): string => {
-    if (value === null || value === undefined || value === "") return "—";
-    if (type === "boolean") return value === true || value === "true" ? "Yes" : "No";
-    if (type === "date" && typeof value === "string") {
-      try { return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); } catch { return String(value); }
-    }
-    if (type === "multi_select" && Array.isArray(value)) return value.join(", ");
-    return String(value);
-  };
 
   return (
     <div className="space-y-5">

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { folders, campaigns, sequences, emails, lists, marketingCampaigns } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -25,7 +26,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await parseJsonBody(req);
+  if (isErrorResponse(body)) return body;
   const name = (body.name as string)?.trim();
   const entityType = body.entityType as string;
 
@@ -47,7 +49,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await parseJsonBody(req);
+  if (isErrorResponse(body)) return body;
   const { id, name } = body as { id: string; name: string };
 
   if (!id || !name?.trim()) {
@@ -73,7 +76,8 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await parseJsonBody(req);
+  if (isErrorResponse(body)) return body;
   const { id } = body as { id: string };
 
   if (!id) {

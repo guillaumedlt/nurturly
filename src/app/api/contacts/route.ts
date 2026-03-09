@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { contacts, listMemberships } from "@/lib/db/schema";
 import { eq, desc, and, ilike, or, sql, count } from "drizzle-orm";
@@ -73,7 +74,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   if (!body.email?.trim()) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }

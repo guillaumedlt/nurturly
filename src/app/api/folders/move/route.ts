@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { campaigns, sequences, emails, lists, marketingCampaigns } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -10,7 +11,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = await parseJsonBody(req);
+  if (isErrorResponse(body)) return body;
   const { itemId, folderId, entityType } = body as {
     itemId: string;
     folderId: string | null;

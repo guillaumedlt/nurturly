@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { marketingCampaigns, marketingCampaignItems, campaigns, sequences, lists } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 
 export async function GET(
   _req: Request,
@@ -74,7 +75,8 @@ export async function PATCH(
   }
 
   const { campaignId } = await params;
-  const body = await req.json();
+  const body = await parseJsonBody(req);
+  if (isErrorResponse(body)) return body;
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (body.name !== undefined) updates.name = body.name;

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { lists, listMemberships, contacts } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 
 export async function GET(
   _request: NextRequest,
@@ -48,7 +49,8 @@ export async function POST(
   }
 
   const { listId } = await params;
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   const { contactIds } = body as { contactIds: string[] };
 
   if (!contactIds?.length) {
@@ -82,7 +84,8 @@ export async function DELETE(
   }
 
   const { listId } = await params;
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   const { contactId } = body as { contactId: string };
 
   await db.delete(listMemberships)

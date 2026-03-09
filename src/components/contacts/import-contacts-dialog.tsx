@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { X, Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -10,71 +10,79 @@ interface ImportContactsDialogProps {
   onImported: () => void;
 }
 
+// Default column mapping: common CSV header names → contact fields
+const AUTO_MAPPING: Record<string, string> = {
+  email: "email",
+  e_mail: "email",
+  email_address: "email",
+  first_name: "firstName",
+  firstname: "firstName",
+  prenom: "firstName",
+  last_name: "lastName",
+  lastname: "lastName",
+  nom: "lastName",
+  company: "company",
+  entreprise: "company",
+  job_title: "jobTitle",
+  jobtitle: "jobTitle",
+  titre: "jobTitle",
+  phone: "phone",
+  telephone: "phone",
+  tags: "tags",
+};
+
 export function ImportContactsDialog({ open, onOpenChange, onImported }: ImportContactsDialogProps) {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<{ imported: number; skipped: number; errors: { row: number; email: string; reason: string }[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setFile(null);
     setResult(null);
-  };
-
-  const parseCSV = (text: string): Record<string, string>[] => {
-    const lines = text.split("\n").filter((l) => l.trim());
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/[^a-z_]/g, ""));
-    return lines.slice(1).map((line) => {
-      const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
-      const row: Record<string, string> = {};
-      headers.forEach((h, i) => { row[h] = values[i] || ""; });
-      return row;
-    });
-  };
+  }, []);
 
   const handleImport = async () => {
     if (!file) return;
     setImporting(true);
 
     try {
+      // Read CSV headers to build mapping
       const text = await file.text();
-      const rows = parseCSV(text);
+      const firstLine = text.split("\n")[0] || "";
+      const headers = firstLine.split(",").map((h) => h.trim().toLowerCase().replace(/[^a-z_]/g, ""));
 
-      let imported = 0;
-      let skipped = 0;
-      const errors: string[] = [];
-
-      for (const row of rows) {
-        const email = row.email || row.e_mail || row.email_address;
-        if (!email) {
-          skipped++;
-          continue;
-        }
-
-        try {
-          const res = await fetch("/api/contacts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email,
-              firstName: row.first_name || row.firstname || row.prenom || null,
-              lastName: row.last_name || row.lastname || row.nom || null,
-              company: row.company || row.entreprise || null,
-              jobTitle: row.job_title || row.jobtitle || row.titre || null,
-              phone: row.phone || row.telephone || null,
-              source: "import",
-            }),
-          });
-          if (res.ok) imported++;
-          else skipped++;
-        } catch {
-          errors.push(`Failed to import ${email}`);
+      const mapping: Record<string, string> = {};
+      for (const header of headers) {
+        const originalHeader = firstLine.split(",").find((h) => h.trim().toLowerCase().replace(/[^a-z_]/g, "") === header)?.trim();
+        if (originalHeader && AUTO_MAPPING[header]) {
+          mapping[originalHeader] = AUTO_MAPPING[header];
         }
       }
 
-      setResult({ imported, skipped, errors });
-      onImported();
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("mapping", JSON.stringify(mapping));
+
+      const res = await fetch("/api/contacts/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setResult({ imported: 0, skipped: 0, errors: [{ row: 0, email: "", reason: err.error || "Import failed" }] });
+      } else {
+        const data = await res.json();
+        setResult({
+          imported: data.imported,
+          skipped: data.skipped,
+          errors: data.errors || [],
+        });
+        onImported();
+      }
+    } catch {
+      setResult({ imported: 0, skipped: 0, errors: [{ row: 0, email: "", reason: "Network error" }] });
     } finally {
       setImporting(false);
     }
@@ -110,7 +118,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: ImportC
                 {result.errors.length > 0 && (
                   <div className="mt-2 flex items-start gap-1.5 text-destructive">
                     <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
-                    <span>{result.errors.length} errors</span>
+                    <span>{result.errors.length} error{result.errors.length > 1 ? "s" : ""}</span>
                   </div>
                 )}
               </div>
@@ -123,7 +131,6 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: ImportC
           </div>
         ) : (
           <div className="mt-5 space-y-4">
-            {/* Drop zone */}
             <div
               onClick={() => fileRef.current?.click()}
               className="flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 border-dashed border-border p-8 transition-colors hover:border-ring hover:bg-muted/20"

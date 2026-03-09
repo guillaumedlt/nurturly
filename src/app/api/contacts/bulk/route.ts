@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { contacts, listMemberships, lists } from "@/lib/db/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
@@ -10,7 +11,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   const { action, contactIds, listId } = body as {
     action: "delete" | "addToList";
     contactIds: string[];

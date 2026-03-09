@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { contactProperties } from "@/lib/db/schema";
 import { eq, asc, and } from "drizzle-orm";
@@ -30,7 +31,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   if (!body.label?.trim()) {
     return NextResponse.json({ error: "Label is required" }, { status: 400 });
   }
@@ -68,7 +70,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   if (!body.id) {
     return NextResponse.json({ error: "Property ID required" }, { status: 400 });
   }
@@ -102,7 +105,8 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   if (!body.id) {
     return NextResponse.json({ error: "Property ID required" }, { status: 400 });
   }

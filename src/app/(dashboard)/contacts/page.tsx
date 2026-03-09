@@ -5,7 +5,7 @@ import { Plus, Users, Search, Trash2, Building2, ChevronLeft, ChevronRight, Uplo
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatRelativeDate } from "@/lib/utils";
+import { formatRelativeDate, formatPropValue } from "@/lib/utils";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { ImportContactsDialog } from "@/components/contacts/import-contacts-dialog";
 import Link from "next/link";
@@ -135,15 +135,6 @@ export default function ContactsPage() {
   // Total columns: checkbox + contact + active builtin + active custom + actions
   const totalCols = 2 + activeBuiltinCols.length + activeCustomCols.length + 1;
 
-  const formatPropValue = (value: unknown, type: string): string => {
-    if (value === null || value === undefined || value === "") return "—";
-    if (type === "boolean") return value === true || value === "true" ? "Yes" : "No";
-    if (type === "date" && typeof value === "string") {
-      try { return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); } catch { return String(value); }
-    }
-    if (type === "multi_select" && Array.isArray(value)) return value.join(", ");
-    return String(value);
-  };
 
   return (
     <div className="space-y-5">

@@ -3,9 +3,11 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  const body = await parseJsonBody(request);
+  if (isErrorResponse(body)) return body;
   const { name, email, password } = body as {
     name?: string;
     email?: string;
