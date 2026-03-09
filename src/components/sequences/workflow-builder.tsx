@@ -2376,7 +2376,6 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
               />
             ))}
           </div>
-          </div>
         </div>
 
         {/* Stats bar */}
