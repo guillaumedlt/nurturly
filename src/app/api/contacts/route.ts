@@ -9,14 +9,15 @@ import { workspaceScope } from "@/lib/workspace";
 import type { ContactFilters, FilterCondition } from "@/lib/contacts/filters";
 
 // Map of built-in field names to their drizzle column references
-const COLUMN_MAP: Record<string, typeof contacts.email> = {
+const COLUMN_MAP = {
   email: contacts.email,
   firstName: contacts.firstName,
   lastName: contacts.lastName,
   company: contacts.company,
   jobTitle: contacts.jobTitle,
   phone: contacts.phone,
-};
+} as const;
+type ColumnMapKey = keyof typeof COLUMN_MAP;
 
 function buildConditionSql(c: FilterCondition): SQL | null {
   // Custom property (stored in JSON)
@@ -86,8 +87,8 @@ function buildConditionSql(c: FilterCondition): SQL | null {
   }
 
   // Text fields
-  const col = COLUMN_MAP[c.field];
-  if (!col) return null;
+  if (!(c.field in COLUMN_MAP)) return null;
+  const col = COLUMN_MAP[c.field as ColumnMapKey];
 
   switch (c.operator) {
     case "equals": return eq(col, c.value);
