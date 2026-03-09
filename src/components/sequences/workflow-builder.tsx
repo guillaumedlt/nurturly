@@ -10,7 +10,6 @@ import {
   CircleStop,
   Plus,
   Trash2,
-  GripVertical,
   ChevronDown,
   Check,
   Search,
@@ -1362,14 +1361,12 @@ function SequenceSettingsPanel({
 
 /* ─── Workflow Node Component ─── */
 function WorkflowNodeCard({
-  node, selected, onSelect, onDragStart, error, onDuplicate, onContextMenu,
+  node, selected, onSelect, error, onContextMenu,
 }: {
   node: WorkflowNode;
   selected: boolean;
   onSelect: () => void;
-  onDragStart: (e: React.MouseEvent) => void;
   error?: string;
-  onDuplicate?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const meta = NODE_META[node.type];
@@ -1401,36 +1398,6 @@ function WorkflowNodeCard({
         }`}
         style={{ height }}
       >
-        {/* Drag handle + Duplicate */}
-        {node.type !== "trigger" && node.type !== "end" && (
-          <div className="absolute -left-7 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 items-center">
-            <div
-              onMouseDown={onDragStart}
-              className="flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground active:cursor-grabbing"
-            >
-              <GripVertical className="h-3.5 w-3.5" />
-            </div>
-            {onDuplicate && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-                className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground hover:!text-foreground"
-                title="Duplicate"
-              >
-                <Copy className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        )}
-        {node.type !== "trigger" && node.type !== "end" && !onDuplicate && (
-          <div
-            onMouseDown={onDragStart}
-            className="absolute -left-7 top-1/2 -translate-y-1/2 flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover:text-muted-foreground active:cursor-grabbing"
-          >
-            <GripVertical className="h-3.5 w-3.5" />
-          </div>
-        )}
-
         {/* Error indicator */}
         {error && (
           <div className="absolute -top-2 -right-2 z-10" title={error}>
@@ -1864,7 +1831,6 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
   const panRef = useRef<{ startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
   const initializedRef = useRef(false);
   const [minimapKey, setMinimapKey] = useState(0);
@@ -2094,55 +2060,6 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [undo, redo, selectedNodeId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Node dragging ───
-  const handleNodeDragStart = useCallback(
-    (nodeId: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      const node = workflow.nodes.find((n) => n.id === nodeId);
-      if (!node || node.type === "trigger") return;
-
-      const canvasRect = canvasRef.current?.getBoundingClientRect();
-      if (!canvasRect) return;
-
-      const scrollLeft = canvasRef.current?.scrollLeft || 0;
-      const scrollTop = canvasRef.current?.scrollTop || 0;
-
-      draggingRef.current = {
-        nodeId,
-        offsetX: e.clientX - canvasRect.left + scrollLeft - (node.position.x + offsetX) * zoom,
-        offsetY: e.clientY - canvasRect.top + scrollTop - (node.position.y + offsetY) * zoom,
-      };
-
-      const onMouseMove = (ev: MouseEvent) => {
-        if (!draggingRef.current || !canvasRef.current) return;
-        const rect = canvasRef.current.getBoundingClientRect();
-        const sl = canvasRef.current.scrollLeft;
-        const st = canvasRef.current.scrollTop;
-        const rawX = (ev.clientX - rect.left + sl - draggingRef.current.offsetX) / zoom - offsetX;
-        const rawY = (ev.clientY - rect.top + st - draggingRef.current.offsetY) / zoom - offsetY;
-
-        onChange({
-          ...workflow,
-          nodes: workflow.nodes.map((n) =>
-            n.id === draggingRef.current!.nodeId
-              ? { ...n, position: { x: rawX, y: rawY } }
-              : n
-          ),
-        });
-      };
-
-      const onMouseUp = () => {
-        draggingRef.current = null;
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-      };
-
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
-    },
-    [workflow, onChange, offsetX, offsetY, zoom]
-  );
 
   // ─── Add node on edge ───
   const addNodeOnEdge = useCallback(
@@ -2407,19 +2324,26 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         }}
         onMouseDown={handleCanvasMouseDown}
       >
+        {/* Spacer div to create scrollable area at zoomed size */}
         <div
           data-canvas-bg
-          className="relative origin-top-left"
+          className="relative"
           style={{
             width: canvasW * zoom,
             height: canvasH * zoom,
             minHeight: "100%",
-            transform: `scale(${zoom})`,
-            transformOrigin: "0 0",
           }}
         >
-          {/* Actual content at natural scale */}
-          <div style={{ width: canvasW, height: canvasH }}>
+          {/* Content at natural scale, visually zoomed */}
+          <div
+            className="origin-top-left"
+            style={{
+              width: canvasW,
+              height: canvasH,
+              transform: `scale(${zoom})`,
+              transformOrigin: "0 0",
+            }}
+          >
             {/* SVG edges */}
             <svg className="absolute inset-0 pointer-events-none" style={{ width: canvasW, height: canvasH }}>
               {edgeElements.map((edge) => (
@@ -2444,15 +2368,14 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
                 node={{ ...node, position: { x: node.position.x + offsetX, y: node.position.y + offsetY } }}
                 selected={selectedNodeId === node.id}
                 onSelect={() => { setSelectedNodeId(node.id); setShowSettings(false); setShowTemplates(false); setContextMenu(null); }}
-                onDragStart={(e) => handleNodeDragStart(node.id, e)}
                 error={errorMap[node.id]}
-                onDuplicate={node.type !== "trigger" && node.type !== "end" ? () => duplicateNode(node.id) : undefined}
                 onContextMenu={(e) => {
                   setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id });
                   setSelectedNodeId(node.id);
                 }}
               />
             ))}
+          </div>
           </div>
         </div>
 
