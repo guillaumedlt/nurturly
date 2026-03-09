@@ -11,8 +11,9 @@ import {
   AlignRight,
   ChevronDown,
   Palette,
+  Type,
 } from "lucide-react";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 
 const FONT_SIZES = [
   { label: "Small", value: "13px" },
@@ -28,6 +29,39 @@ const PRESET_COLORS = [
   "#ea580c", "#7c3aed", "#0891b2",
 ];
 
+const FONT_FAMILIES = [
+  { label: "Default", value: "" },
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Times New Roman", value: "'Times New Roman', serif" },
+  { label: "Trebuchet MS", value: "'Trebuchet MS', sans-serif" },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Tahoma", value: "Tahoma, sans-serif" },
+  { label: "Lucida Sans", value: "'Lucida Sans', sans-serif" },
+  { label: "Palatino", value: "'Palatino Linotype', Palatino, serif" },
+  { label: "Garamond", value: "Garamond, serif" },
+  { label: "Courier New", value: "'Courier New', monospace" },
+  { label: "Monaco", value: "Monaco, monospace" },
+  { label: "Segoe UI", value: "'Segoe UI', sans-serif" },
+  { label: "Roboto", value: "Roboto, sans-serif" },
+  { label: "Open Sans", value: "'Open Sans', sans-serif" },
+  { label: "Lato", value: "Lato, sans-serif" },
+  { label: "Montserrat", value: "Montserrat, sans-serif" },
+  { label: "Poppins", value: "Poppins, sans-serif" },
+  { label: "Inter", value: "Inter, sans-serif" },
+  { label: "Playfair Display", value: "'Playfair Display', serif" },
+  { label: "Merriweather", value: "Merriweather, serif" },
+  { label: "Raleway", value: "Raleway, sans-serif" },
+  { label: "Nunito", value: "Nunito, sans-serif" },
+  { label: "Source Sans Pro", value: "'Source Sans 3', sans-serif" },
+  { label: "PT Sans", value: "'PT Sans', sans-serif" },
+  { label: "Oswald", value: "Oswald, sans-serif" },
+  { label: "Libre Baskerville", value: "'Libre Baskerville', serif" },
+  { label: "Ubuntu", value: "Ubuntu, sans-serif" },
+  { label: "Noto Sans", value: "'Noto Sans', sans-serif" },
+];
+
 interface EditorBubbleMenuProps {
   editor: Editor;
 }
@@ -36,10 +70,26 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showFontSize, setShowFontSize] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showFontFamily, setShowFontFamily] = useState(false);
+  const [fontSearch, setFontSearch] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const colorInputRef = useRef<HTMLInputElement>(null);
 
   const currentColor = editor.getAttributes("textStyle")?.color || "#0a0a0a";
+  const currentFontFamily = editor.getAttributes("textStyle")?.fontFamily || "";
+  const currentFontLabel = FONT_FAMILIES.find((f) => f.value === currentFontFamily)?.label || "Default";
+
+  const filteredFonts = useMemo(() => {
+    if (!fontSearch.trim()) return FONT_FAMILIES;
+    const q = fontSearch.toLowerCase();
+    return FONT_FAMILIES.filter((f) => f.label.toLowerCase().includes(q));
+  }, [fontSearch]);
+
+  const closeAll = useCallback(() => {
+    setShowFontSize(false);
+    setShowColorPicker(false);
+    setShowFontFamily(false);
+  }, []);
 
   const setLink = useCallback(() => {
     if (linkUrl.trim()) {
@@ -112,11 +162,69 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
           </div>
         ) : (
           <>
+            {/* Font family dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => { const next = !showFontFamily; closeAll(); setShowFontFamily(next); setFontSearch(""); }}
+                className="flex h-7 items-center gap-0.5 rounded px-1.5 text-[11px] text-foreground transition-colors hover:bg-accent max-w-[90px]"
+                title="Font family"
+              >
+                <Type className="mr-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="truncate">{currentFontLabel}</span>
+                <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+              </button>
+              {showFontFamily && (
+                <div className="absolute top-full left-0 z-50 mt-1 w-52 rounded-lg border border-border bg-background shadow-lg">
+                  <div className="p-1.5">
+                    <input
+                      type="text"
+                      value={fontSearch}
+                      onChange={(e) => setFontSearch(e.target.value)}
+                      placeholder="Search fonts..."
+                      className="h-7 w-full rounded-md border border-input bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto p-0.5">
+                    {filteredFonts.map((f) => (
+                      <button
+                        key={f.label}
+                        type="button"
+                        onClick={() => {
+                          if (!f.value) {
+                            editor.chain().focus().unsetFontFamily().run();
+                          } else {
+                            editor.chain().focus().setFontFamily(f.value).run();
+                          }
+                          setShowFontFamily(false);
+                          setFontSearch("");
+                        }}
+                        className={`flex w-full items-center rounded px-2 py-1.5 text-[12px] transition-colors ${
+                          currentFontFamily === f.value
+                            ? "bg-accent font-medium"
+                            : "hover:bg-accent"
+                        }`}
+                        style={f.value ? { fontFamily: f.value } : undefined}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                    {filteredFonts.length === 0 && (
+                      <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">No fonts found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mx-0.5 h-4 w-px bg-border" />
+
             {/* Font size dropdown */}
             <div className="relative">
               <button
                 type="button"
-                onClick={() => { setShowFontSize(!showFontSize); setShowColorPicker(false); }}
+                onClick={() => { const next = !showFontSize; closeAll(); setShowFontSize(next); }}
                 className="flex h-7 items-center gap-0.5 rounded px-1.5 text-[11px] text-foreground transition-colors hover:bg-accent"
                 title="Font size"
               >
@@ -215,7 +323,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
             <div className="relative">
               <button
                 type="button"
-                onClick={() => { setShowColorPicker(!showColorPicker); setShowFontSize(false); }}
+                onClick={() => { const next = !showColorPicker; closeAll(); setShowColorPicker(next); }}
                 className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-accent"
                 title="Text color"
               >

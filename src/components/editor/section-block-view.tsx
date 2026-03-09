@@ -1,12 +1,15 @@
 "use client";
 
 import { NodeViewWrapper, NodeViewContent, type ReactNodeViewProps } from "@tiptap/react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Paintbrush } from "lucide-react";
 
 const BG_COLORS = [
   "#ffffff", "#fafafa", "#f5f5f5", "#e5e5e5",
-  "#0a0a0a", "#eff6ff", "#f0fdf4", "#fef2f2",
+  "#0a0a0a", "#1e293b", "#eff6ff", "#dbeafe",
+  "#f0fdf4", "#dcfce7", "#fef2f2", "#fecaca",
+  "#fefce8", "#fef3c7", "#faf5ff", "#ede9fe",
+  "#f0fdfa", "#e0f2fe",
 ];
 
 const PADDING_PRESETS = [
@@ -18,6 +21,7 @@ const PADDING_PRESETS = [
 
 export function SectionBlockView({ node, updateAttributes, selected }: ReactNodeViewProps) {
   const [showControls, setShowControls] = useState(false);
+  const colorInputRef = useRef<HTMLInputElement>(null);
   const { backgroundColor, paddingTop, paddingBottom, paddingLeft, paddingRight, borderRadius } = node.attrs;
   const isDark = backgroundColor === "#0a0a0a" || backgroundColor === "#1e293b";
 
@@ -46,13 +50,13 @@ export function SectionBlockView({ node, updateAttributes, selected }: ReactNode
         {/* Controls panel */}
         {showControls && (
           <div
-            className="absolute -top-2 right-2 z-40 w-56 translate-y-[-100%] rounded-xl border border-border bg-background p-3 shadow-xl"
+            className="absolute -top-2 right-2 z-40 w-64 translate-y-[-100%] rounded-xl border border-border bg-background p-3 shadow-xl"
             contentEditable={false}
           >
             {/* Background color */}
             <div className="mb-3">
               <span className="mb-1.5 block text-[10px] uppercase tracking-wider text-muted-foreground/70">Background</span>
-              <div className="flex gap-1">
+              <div className="grid grid-cols-6 gap-1.5">
                 {BG_COLORS.map((c) => (
                   <button
                     key={c}
@@ -62,6 +66,34 @@ export function SectionBlockView({ node, updateAttributes, selected }: ReactNode
                     style={{ backgroundColor: c }}
                   />
                 ))}
+              </div>
+              {/* Custom color input */}
+              <div className="mt-2 flex items-center gap-2">
+                <div
+                  className="relative h-7 w-7 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border"
+                  onClick={() => colorInputRef.current?.click()}
+                >
+                  <div className="absolute inset-0" style={{ backgroundColor }} />
+                  <input
+                    ref={colorInputRef}
+                    type="color"
+                    value={backgroundColor || "#ffffff"}
+                    onChange={(e) => updateAttributes({ backgroundColor: e.target.value })}
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={backgroundColor || "#ffffff"}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+                      updateAttributes({ backgroundColor: val });
+                    }
+                  }}
+                  placeholder="#ffffff"
+                  className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-ring"
+                />
               </div>
             </div>
 
