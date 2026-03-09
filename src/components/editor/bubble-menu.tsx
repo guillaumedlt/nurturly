@@ -193,7 +193,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
                         type="button"
                         onClick={() => {
                           if (!f.value) {
-                            editor.chain().focus().unsetFontFamily().run();
+                            editor.chain().focus().setFontFamily("").run();
                           } else {
                             editor.chain().focus().setFontFamily(f.value).run();
                           }
