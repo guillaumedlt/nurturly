@@ -37,10 +37,19 @@ export async function GET(
 
   const [transactionalItems, sequenceItems, audienceItems] = await Promise.all([
     transactionalIds.length > 0
-      ? db.select({ id: campaigns.id, name: campaigns.name, status: campaigns.status, totalSent: campaigns.totalSent, totalOpened: campaigns.totalOpened }).from(campaigns).where(inArray(campaigns.id, transactionalIds))
+      ? db.select({
+          id: campaigns.id, name: campaigns.name, status: campaigns.status,
+          totalSent: campaigns.totalSent, totalDelivered: campaigns.totalDelivered,
+          totalOpened: campaigns.totalOpened, totalClicked: campaigns.totalClicked,
+          totalBounced: campaigns.totalBounced, totalRecipients: campaigns.totalRecipients,
+          sentAt: campaigns.sentAt,
+        }).from(campaigns).where(inArray(campaigns.id, transactionalIds))
       : [],
     sequenceIds.length > 0
-      ? db.select({ id: sequences.id, name: sequences.name, status: sequences.status, totalEnrolled: sequences.totalEnrolled }).from(sequences).where(inArray(sequences.id, sequenceIds))
+      ? db.select({
+          id: sequences.id, name: sequences.name, status: sequences.status,
+          totalEnrolled: sequences.totalEnrolled, totalCompleted: sequences.totalCompleted,
+        }).from(sequences).where(inArray(sequences.id, sequenceIds))
       : [],
     audienceIds.length > 0
       ? db.select({ id: lists.id, name: lists.name, contactCount: lists.contactCount }).from(lists).where(inArray(lists.id, audienceIds))
