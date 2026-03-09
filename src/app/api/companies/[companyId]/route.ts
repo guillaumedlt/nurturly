@@ -46,7 +46,7 @@ export async function GET(
 
   return NextResponse.json({
     ...company,
-    properties: company.properties ? JSON.parse(company.properties) : {},
+    properties: (() => { try { return company.properties ? JSON.parse(company.properties) : {}; } catch { return {}; } })(),
     contacts: associatedContacts,
   });
 }
@@ -89,7 +89,7 @@ export async function PATCH(
 
   return NextResponse.json({
     ...updated,
-    properties: updated.properties ? JSON.parse(updated.properties) : {},
+    properties: (() => { try { return updated.properties ? JSON.parse(updated.properties) : {}; } catch { return {}; } })()
   });
 }
 

@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest) {
   await db
     .update(workspaceMembers)
     .set({ role })
-    .where(eq(workspaceMembers.id, memberId));
+    .where(and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, workspace.workspaceId)));
 
   return NextResponse.json({ ok: true });
 }
@@ -112,7 +112,7 @@ export async function DELETE(request: NextRequest) {
 
   await db
     .delete(workspaceMembers)
-    .where(eq(workspaceMembers.id, memberId));
+    .where(and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, workspace.workspaceId)));
 
   return NextResponse.json({ ok: true });
 }

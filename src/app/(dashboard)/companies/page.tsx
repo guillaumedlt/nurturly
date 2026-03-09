@@ -110,6 +110,7 @@ export default function CompaniesPage() {
       if (res.ok) {
         toast.success(`"${deleteConfirm.name}" has been deleted`);
         setSelected((prev) => { const next = new Set(prev); next.delete(deleteConfirm.id); return next; });
+        setDeleteConfirm(null);
         fetchCompanies();
       } else {
         toast.error("Failed to delete company");
@@ -118,7 +119,6 @@ export default function CompaniesPage() {
       toast.error("Failed to delete company");
     } finally {
       setDeleting(false);
-      setDeleteConfirm(null);
     }
   };
 
@@ -129,16 +129,16 @@ export default function CompaniesPage() {
       const failed = results.filter((r) => !r.ok).length;
       if (failed === 0) {
         toast.success(`${selected.size} compan${selected.size !== 1 ? "ies" : "y"} deleted`);
+        setSelected(new Set());
+        setBulkDeleteConfirm(false);
       } else {
         toast.error(`Failed to delete ${failed} compan${failed !== 1 ? "ies" : "y"}`);
       }
-      setSelected(new Set());
       fetchCompanies();
     } catch {
       toast.error("Failed to delete companies");
     } finally {
       setDeleting(false);
-      setBulkDeleteConfirm(false);
     }
   };
 

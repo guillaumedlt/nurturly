@@ -103,13 +103,14 @@ export default function ContactsPage() {
       const res = await fetch(`/api/contacts/${deleteConfirm.id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Contact deleted");
+        setDeleteConfirm(null);
         fetchContacts();
         setSelected((prev) => { const next = new Set(prev); next.delete(deleteConfirm.id); return next; });
       } else {
         toast.error("Failed to delete contact");
       }
-    } finally {
-      setDeleteConfirm(null);
+    } catch {
+      toast.error("Failed to delete contact");
     }
   };
 
@@ -125,13 +126,14 @@ export default function ContactsPage() {
       const allOk = results.every((r) => r.ok);
       if (allOk) {
         toast.success(`${selected.size} contact${selected.size !== 1 ? "s" : ""} deleted`);
+        setSelected(new Set());
+        setBulkDeleteConfirm(false);
       } else {
         toast.error("Some contacts could not be deleted");
       }
-      setSelected(new Set());
       fetchContacts();
-    } finally {
-      setBulkDeleteConfirm(false);
+    } catch {
+      toast.error("Failed to delete contacts");
     }
   };
 

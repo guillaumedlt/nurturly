@@ -96,18 +96,7 @@ export async function POST(request: NextRequest) {
     })
     .returning();
 
-  // If user already exists, auto-add them as member
-  if (existingUser) {
-    await db.insert(workspaceMembers).values({
-      workspaceId: workspace.workspaceId,
-      userId: existingUser.id,
-      role: role || "member",
-    });
-    await db
-      .update(workspaceInvitations)
-      .set({ status: "accepted" })
-      .where(eq(workspaceInvitations.id, invitation.id));
-  }
+  // TODO: Send invitation email with accept link containing invitation.token
 
   return NextResponse.json(invitation, { status: 201 });
 }

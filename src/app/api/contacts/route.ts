@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
   const search = params.get("search") || "";
   const subscribed = params.get("subscribed");
   const source = params.get("source");
-  const page = Math.max(1, parseInt(params.get("page") || "1"));
-  const limit = Math.min(100, Math.max(1, parseInt(params.get("limit") || "50")));
+  const page = Math.max(1, parseInt(params.get("page") || "1") || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(params.get("limit") || "50") || 50));
   const offset = (page - 1) * limit;
 
   const scope = await workspaceScope(contacts.userId, session.user.id);
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   // Parse properties JSON for each contact
   const parsed = rows.map((r) => ({
     ...r,
-    properties: r.properties ? JSON.parse(r.properties) : {},
+    properties: (() => { try { return r.properties ? JSON.parse(r.properties) : {}; } catch { return {}; } })()
   }));
 
   return NextResponse.json({

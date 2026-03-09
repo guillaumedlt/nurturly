@@ -83,7 +83,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
       if (contactData.companyId) {
         fetch(`/api/companies/${contactData.companyId}`)
           .then((r) => r.ok ? r.json() : null)
-          .then((data) => { if (data) setCompanyInfo({ id: data.id, name: data.name, domain: data.domain, industry: data.industry }); });
+          .then((data) => { if (data) setCompanyInfo({ id: data.id, name: data.name, domain: data.domain, industry: data.industry }); })
+          .catch(() => {});
       } else {
         setCompanyInfo(null);
       }
@@ -147,7 +148,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
       // Refetch company details
       fetch(`/api/companies/${cId}`)
         .then((r) => r.ok ? r.json() : null)
-        .then((data) => { if (data) setCompanyInfo({ id: data.id, name: data.name, domain: data.domain, industry: data.industry }); });
+        .then((data) => { if (data) setCompanyInfo({ id: data.id, name: data.name, domain: data.domain, industry: data.industry }); })
+        .catch(() => {});
     } else {
       toast.error("Failed to link company");
     }
@@ -361,7 +363,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
                     if (!showCompanyPicker) {
                       fetch("/api/companies?all=true")
                         .then((r) => r.ok ? r.json() : { companies: [] })
-                        .then((data) => setCompanyOptions(data.companies || []));
+                        .then((data) => setCompanyOptions(data.companies || []))
+                        .catch(() => {});
                     }
                   }}
                   className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

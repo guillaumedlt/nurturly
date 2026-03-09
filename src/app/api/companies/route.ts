@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
 
   const params = request.nextUrl.searchParams;
   const search = params.get("search") || "";
-  const page = Math.max(1, parseInt(params.get("page") || "1"));
-  const limit = Math.min(100, Math.max(1, parseInt(params.get("limit") || "50")));
+  const page = Math.max(1, parseInt(params.get("page") || "1") || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(params.get("limit") || "50") || 50));
   const offset = (page - 1) * limit;
   const all = params.get("all"); // for autocomplete
 
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 
   const parsed = rows.map((r) => ({
     ...r,
-    properties: r.properties ? JSON.parse(r.properties) : {},
+    properties: (() => { try { return r.properties ? JSON.parse(r.properties) : {}; } catch { return {}; } })(),
     contactCount: contactCounts[r.id] || 0,
   }));
 
