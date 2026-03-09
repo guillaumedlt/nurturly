@@ -15,6 +15,7 @@ export async function GET() {
       id: emails.id,
       name: emails.name,
       subject: emails.subject,
+      folderId: emails.folderId,
       updatedAt: emails.updatedAt,
       createdAt: emails.createdAt,
     })

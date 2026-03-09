@@ -20,6 +20,7 @@ export async function GET() {
       triggerType: sequences.triggerType,
       totalEnrolled: sequences.totalEnrolled,
       totalCompleted: sequences.totalCompleted,
+      folderId: sequences.folderId,
       createdAt: sequences.createdAt,
       updatedAt: sequences.updatedAt,
     })

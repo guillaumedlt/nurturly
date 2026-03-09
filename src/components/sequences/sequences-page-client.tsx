@@ -5,6 +5,7 @@ import { Plus, Trash2, Loader2, GitBranch, Search, Copy } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { FolderNav, MoveToFolderDropdown, type Folder } from "@/components/shared/folder-nav";
 
 interface SequenceRow {
   id: string;
@@ -12,6 +13,7 @@ interface SequenceRow {
   status: "draft" | "active" | "paused" | "archived";
   totalEnrolled: number;
   totalCompleted: number;
+  folderId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,17 +29,26 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
 
 export function SequencesPageClient() {
   const [sequences, setSequences] = useState<SequenceRow[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [search, setSearch] = useState("");
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
 
-  const fetchSequences = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/sequences");
-      if (res.ok) {
-        const data = await res.json();
+      const [seqRes, foldersRes] = await Promise.all([
+        fetch("/api/sequences"),
+        fetch("/api/folders?entityType=sequence"),
+      ]);
+      if (seqRes.ok) {
+        const data = await seqRes.json();
         setSequences(data.sequences);
+      }
+      if (foldersRes.ok) {
+        const data = await foldersRes.json();
+        setFolders(data.folders);
       }
     } finally {
       setLoading(false);
@@ -45,11 +56,14 @@ export function SequencesPageClient() {
   }, []);
 
   useEffect(() => {
-    fetchSequences();
-  }, [fetchSequences]);
+    fetchData();
+  }, [fetchData]);
 
   const filtered = useMemo(() => {
     let result = sequences;
+    if (activeFolderId !== null) {
+      result = result.filter((s) => s.folderId === activeFolderId);
+    }
     if (statusFilter) {
       result = result.filter((s) => s.status === statusFilter);
     }
@@ -58,7 +72,7 @@ export function SequencesPageClient() {
       result = result.filter((s) => s.name.toLowerCase().includes(q));
     }
     return result;
-  }, [sequences, statusFilter, search]);
+  }, [sequences, activeFolderId, statusFilter, search]);
 
   const createSequence = async () => {
     setCreating(true);
@@ -80,7 +94,6 @@ export function SequencesPageClient() {
   const cloneSequence = async (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      // Fetch the source sequence to get its workflow data
       const srcRes = await fetch(`/api/sequences/${id}`);
       if (!srcRes.ok) return;
       const src = await srcRes.json();
@@ -94,7 +107,7 @@ export function SequencesPageClient() {
         }),
       });
       if (res.ok) {
-        fetchSequences();
+        fetchData();
       }
     } catch {}
   };
@@ -104,6 +117,49 @@ export function SequencesPageClient() {
     if (!confirm("Delete this sequence?")) return;
     await fetch(`/api/sequences/${id}`, { method: "DELETE" });
     setSequences((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const createFolder = async (name: string) => {
+    const res = await fetch("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, entityType: "sequence" }),
+    });
+    if (res.ok) {
+      const folder = await res.json();
+      setFolders((prev) => [...prev, folder]);
+    }
+  };
+
+  const renameFolder = async (id: string, name: string) => {
+    const res = await fetch("/api/folders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name }),
+    });
+    if (res.ok) {
+      setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name } : f)));
+    }
+  };
+
+  const deleteFolder = async (id: string) => {
+    await fetch("/api/folders", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setSequences((prev) => prev.map((s) => (s.folderId === id ? { ...s, folderId: null } : s)));
+    if (activeFolderId === id) setActiveFolderId(null);
+  };
+
+  const moveToFolder = async (itemId: string, folderId: string | null) => {
+    await fetch("/api/folders/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, folderId, entityType: "sequence" }),
+    });
+    setSequences((prev) => prev.map((s) => (s.id === itemId ? { ...s, folderId } : s)));
   };
 
   if (loading) {
@@ -140,7 +196,7 @@ export function SequencesPageClient() {
         </button>
       </div>
 
-      {sequences.length === 0 ? (
+      {sequences.length === 0 && folders.length === 0 ? (
         <EmptyState
           icon={GitBranch}
           title="No sequences yet"
@@ -150,6 +206,18 @@ export function SequencesPageClient() {
         />
       ) : (
         <>
+          {/* Folders */}
+          <FolderNav
+            folders={folders}
+            activeFolderId={activeFolderId}
+            entityType="sequence"
+            onSelect={setActiveFolderId}
+            onCreate={createFolder}
+            onRename={renameFolder}
+            onDelete={deleteFolder}
+          />
+
+          {/* Filters */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative max-w-[220px] flex-1">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -195,7 +263,7 @@ export function SequencesPageClient() {
                   <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground md:table-cell">
                     Updated
                   </th>
-                  <th className="w-10" />
+                  <th className="w-24" />
                 </tr>
               </thead>
               <tbody>
@@ -232,6 +300,11 @@ export function SequencesPageClient() {
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                          <MoveToFolderDropdown
+                            folders={folders}
+                            currentFolderId={seq.folderId}
+                            onMove={(folderId) => moveToFolder(seq.id, folderId)}
+                          />
                           <button
                             type="button"
                             onClick={(e) => cloneSequence(seq.id, seq.name, e)}

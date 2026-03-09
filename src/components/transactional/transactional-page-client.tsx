@@ -5,6 +5,7 @@ import { Plus, Trash2, Loader2, Zap, Search } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { FolderNav, MoveToFolderDropdown, type Folder } from "@/components/shared/folder-nav";
 
 interface TransactionalRow {
   id: string;
@@ -17,6 +18,7 @@ interface TransactionalRow {
   totalOpened: number;
   scheduledAt: string | null;
   sentAt: string | null;
+  folderId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -32,17 +34,26 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
 
 export function TransactionalPageClient() {
   const [items, setItems] = useState<TransactionalRow[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [search, setSearch] = useState("");
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
 
-  const fetchItems = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/campaigns");
-      if (res.ok) {
-        const data = await res.json();
+      const [itemsRes, foldersRes] = await Promise.all([
+        fetch("/api/campaigns"),
+        fetch("/api/folders?entityType=transactional"),
+      ]);
+      if (itemsRes.ok) {
+        const data = await itemsRes.json();
         setItems(data.campaigns);
+      }
+      if (foldersRes.ok) {
+        const data = await foldersRes.json();
+        setFolders(data.folders);
       }
     } finally {
       setLoading(false);
@@ -50,11 +61,14 @@ export function TransactionalPageClient() {
   }, []);
 
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    fetchData();
+  }, [fetchData]);
 
   const filtered = useMemo(() => {
     let result = items;
+    if (activeFolderId !== null) {
+      result = result.filter((c) => c.folderId === activeFolderId);
+    }
     if (statusFilter) {
       result = result.filter((c) => c.status === statusFilter);
     }
@@ -68,7 +82,7 @@ export function TransactionalPageClient() {
       );
     }
     return result;
-  }, [items, statusFilter, search]);
+  }, [items, activeFolderId, statusFilter, search]);
 
   const createItem = async () => {
     setCreating(true);
@@ -92,6 +106,49 @@ export function TransactionalPageClient() {
     if (!confirm("Delete this transactional email?")) return;
     await fetch(`/api/campaigns/${id}`, { method: "DELETE" });
     setItems((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const createFolder = async (name: string) => {
+    const res = await fetch("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, entityType: "transactional" }),
+    });
+    if (res.ok) {
+      const folder = await res.json();
+      setFolders((prev) => [...prev, folder]);
+    }
+  };
+
+  const renameFolder = async (id: string, name: string) => {
+    const res = await fetch("/api/folders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name }),
+    });
+    if (res.ok) {
+      setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name } : f)));
+    }
+  };
+
+  const deleteFolder = async (id: string) => {
+    await fetch("/api/folders", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setItems((prev) => prev.map((i) => (i.folderId === id ? { ...i, folderId: null } : i)));
+    if (activeFolderId === id) setActiveFolderId(null);
+  };
+
+  const moveToFolder = async (itemId: string, folderId: string | null) => {
+    await fetch("/api/folders/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, folderId, entityType: "transactional" }),
+    });
+    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, folderId } : i)));
   };
 
   if (loading) {
@@ -128,7 +185,7 @@ export function TransactionalPageClient() {
         </button>
       </div>
 
-      {items.length === 0 ? (
+      {items.length === 0 && folders.length === 0 ? (
         <EmptyState
           icon={Zap}
           title="No transactional emails yet"
@@ -138,6 +195,17 @@ export function TransactionalPageClient() {
         />
       ) : (
         <>
+          {/* Folders */}
+          <FolderNav
+            folders={folders}
+            activeFolderId={activeFolderId}
+            entityType="transactional"
+            onSelect={setActiveFolderId}
+            onCreate={createFolder}
+            onRename={renameFolder}
+            onDelete={deleteFolder}
+          />
+
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative max-w-[220px] flex-1">
@@ -187,7 +255,7 @@ export function TransactionalPageClient() {
                   <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground lg:table-cell">
                     Send date
                   </th>
-                  <th className="w-10" />
+                  <th className="w-20" />
                 </tr>
               </thead>
               <tbody>
@@ -237,13 +305,20 @@ export function TransactionalPageClient() {
                         </span>
                       </td>
                       <td className="px-2 py-2">
-                        <button
-                          type="button"
-                          onClick={(e) => deleteItem(item.id, e)}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                          <MoveToFolderDropdown
+                            folders={folders}
+                            currentFolderId={item.folderId}
+                            onMove={(folderId) => moveToFolder(item.id, folderId)}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => deleteItem(item.id, e)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

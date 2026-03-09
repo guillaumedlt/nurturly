@@ -24,6 +24,7 @@ export async function GET() {
       totalOpened: campaigns.totalOpened,
       scheduledAt: campaigns.scheduledAt,
       sentAt: campaigns.sentAt,
+      folderId: campaigns.folderId,
       createdAt: campaigns.createdAt,
       updatedAt: campaigns.updatedAt,
     })

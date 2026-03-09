@@ -145,6 +145,7 @@ export const emails = pgTable("emails", {
   preheaderText: text("preheader_text"),
   editorContent: text("editor_content").notNull(),
   htmlContent: text("html_content"),
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -169,6 +170,7 @@ export const campaigns = pgTable("campaigns", {
   totalOpened: integer("total_opened").default(0),
   totalClicked: integer("total_clicked").default(0),
   totalBounced: integer("total_bounced").default(0),
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -186,6 +188,7 @@ export const sequences = pgTable("sequences", {
   workflowData: text("workflow_data"),
   totalEnrolled: integer("total_enrolled").default(0),
   totalCompleted: integer("total_completed").default(0),
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -224,6 +227,18 @@ export const sequenceEnrollments = pgTable("sequence_enrollments", {
 }, (table) => [
   uniqueIndex("enrollment_unique_idx").on(table.sequenceId, table.contactId),
   index("enrollment_next_step_idx").on(table.status, table.nextStepScheduledAt),
+]);
+
+// ── Folders ──
+
+export const folders = pgTable("folders", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  entityType: text("entity_type").notNull(), // 'transactional' | 'sequence' | 'email'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("folders_user_type_idx").on(table.userId, table.entityType),
 ]);
 
 // ── Marketing Campaigns ──

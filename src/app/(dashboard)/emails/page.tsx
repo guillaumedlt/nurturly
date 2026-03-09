@@ -4,27 +4,38 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Plus, Trash2, Loader2, Mail, Search } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/empty-state";
+import { FolderNav, MoveToFolderDropdown, type Folder } from "@/components/shared/folder-nav";
 
 interface EmailTemplate {
   id: string;
   name: string;
   subject: string;
+  folderId: string | null;
   updatedAt: string;
   createdAt: string;
 }
 
 export default function EmailsPage() {
   const [emails, setEmails] = useState<EmailTemplate[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
 
-  const fetchEmails = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/emails");
-      if (res.ok) {
-        const data = await res.json();
+      const [emailsRes, foldersRes] = await Promise.all([
+        fetch("/api/emails"),
+        fetch("/api/folders?entityType=email"),
+      ]);
+      if (emailsRes.ok) {
+        const data = await emailsRes.json();
         setEmails(data.emails);
+      }
+      if (foldersRes.ok) {
+        const data = await foldersRes.json();
+        setFolders(data.folders);
       }
     } finally {
       setLoading(false);
@@ -32,18 +43,24 @@ export default function EmailsPage() {
   }, []);
 
   useEffect(() => {
-    fetchEmails();
-  }, [fetchEmails]);
+    fetchData();
+  }, [fetchData]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return emails;
-    const q = search.toLowerCase();
-    return emails.filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.subject.toLowerCase().includes(q)
-    );
-  }, [emails, search]);
+    let result = emails;
+    if (activeFolderId !== null) {
+      result = result.filter((e) => e.folderId === activeFolderId);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.name.toLowerCase().includes(q) ||
+          e.subject.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [emails, activeFolderId, search]);
 
   const createEmail = async () => {
     setCreating(true);
@@ -67,6 +84,49 @@ export default function EmailsPage() {
     if (!confirm("Delete this email template?")) return;
     await fetch(`/api/emails/${id}`, { method: "DELETE" });
     setEmails((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const createFolder = async (name: string) => {
+    const res = await fetch("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, entityType: "email" }),
+    });
+    if (res.ok) {
+      const folder = await res.json();
+      setFolders((prev) => [...prev, folder]);
+    }
+  };
+
+  const renameFolder = async (id: string, name: string) => {
+    const res = await fetch("/api/folders", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name }),
+    });
+    if (res.ok) {
+      setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name } : f)));
+    }
+  };
+
+  const deleteFolder = async (id: string) => {
+    await fetch("/api/folders", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setEmails((prev) => prev.map((e) => (e.folderId === id ? { ...e, folderId: null } : e)));
+    if (activeFolderId === id) setActiveFolderId(null);
+  };
+
+  const moveToFolder = async (itemId: string, folderId: string | null) => {
+    await fetch("/api/folders/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, folderId, entityType: "email" }),
+    });
+    setEmails((prev) => prev.map((e) => (e.id === itemId ? { ...e, folderId } : e)));
   };
 
   if (loading) {
@@ -105,7 +165,7 @@ export default function EmailsPage() {
         </button>
       </div>
 
-      {emails.length === 0 ? (
+      {emails.length === 0 && folders.length === 0 ? (
         <EmptyState
           icon={Mail}
           title="No email templates"
@@ -115,6 +175,17 @@ export default function EmailsPage() {
         />
       ) : (
         <>
+          {/* Folders */}
+          <FolderNav
+            folders={folders}
+            activeFolderId={activeFolderId}
+            entityType="email"
+            onSelect={setActiveFolderId}
+            onCreate={createFolder}
+            onRename={renameFolder}
+            onDelete={deleteFolder}
+          />
+
           {/* Search */}
           <div className="flex items-center gap-2">
             <div className="relative max-w-[240px] flex-1">
@@ -142,7 +213,7 @@ export default function EmailsPage() {
                   <th className="hidden px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground md:table-cell">
                     Updated
                   </th>
-                  <th className="w-10" />
+                  <th className="w-20" />
                 </tr>
               </thead>
               <tbody>
@@ -175,13 +246,20 @@ export default function EmailsPage() {
                         </span>
                       </td>
                       <td className="px-2 py-2">
-                        <button
-                          type="button"
-                          onClick={(e) => deleteEmail(email.id, e)}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                          <MoveToFolderDropdown
+                            folders={folders}
+                            currentFolderId={email.folderId}
+                            onMove={(folderId) => moveToFolder(email.id, folderId)}
+                          />
+                          <button
+                            type="button"
+                            onClick={(e) => deleteEmail(email.id, e)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
