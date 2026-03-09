@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Plus, Trash2, Loader2, GitBranch, Search } from "lucide-react";
+import { Plus, Trash2, Loader2, GitBranch, Search, Copy } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -75,6 +75,28 @@ export function SequencesPageClient() {
     } finally {
       setCreating(false);
     }
+  };
+
+  const cloneSequence = async (id: string, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      // Fetch the source sequence to get its workflow data
+      const srcRes = await fetch(`/api/sequences/${id}`);
+      if (!srcRes.ok) return;
+      const src = await srcRes.json();
+
+      const res = await fetch("/api/sequences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${name} (copy)`,
+          workflowData: src.workflowData,
+        }),
+      });
+      if (res.ok) {
+        fetchSequences();
+      }
+    } catch {}
   };
 
   const deleteSequence = async (id: string, e: React.MouseEvent) => {
@@ -209,13 +231,23 @@ export function SequencesPageClient() {
                         </span>
                       </td>
                       <td className="px-2 py-2">
-                        <button
-                          type="button"
-                          onClick={(e) => deleteSequence(seq.id, e)}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            type="button"
+                            onClick={(e) => cloneSequence(seq.id, seq.name, e)}
+                            title="Duplicate"
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => deleteSequence(seq.id, e)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const name = (body.name as string)?.trim() || "Untitled sequence";
+  const workflowData = (body.workflowData as string) || JSON.stringify(createDefaultWorkflow());
 
   const [created] = await db
     .insert(sequences)
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       name,
       status: "draft",
-      workflowData: JSON.stringify(createDefaultWorkflow()),
+      workflowData,
     })
     .returning();
 

@@ -285,7 +285,7 @@ function autoLayoutWorkflow(workflow: WorkflowDefinition): WorkflowDefinition {
   return { ...workflow, nodes: updatedNodes };
 }
 
-/* ─── SVG Edge Path ─── */
+/* ─── SVG Edge Path with animated flow dot ─── */
 function EdgePath({
   x1, y1, x2, y2, dashed,
 }: {
@@ -298,15 +298,24 @@ function EdgePath({
     ? `M ${x1} ${y1} C ${x1} ${y1 + controlY}, ${x2} ${y2 - controlY}, ${x2} ${y2}`
     : `M ${x1} ${y1} C ${x1} ${y1 + controlY}, ${x2} ${y2 - controlY}, ${x2} ${y2}`;
 
+  const pathId = `edge-${x1}-${y1}-${x2}-${y2}`;
+
   return (
-    <path
-      d={d}
-      fill="none"
-      stroke="var(--border)"
-      strokeWidth={2}
-      strokeDasharray={dashed ? "6 4" : undefined}
-      className="transition-colors"
-    />
+    <g>
+      <path
+        id={pathId}
+        d={d}
+        fill="none"
+        stroke="var(--border)"
+        strokeWidth={2}
+        strokeDasharray={dashed ? "6 4" : undefined}
+        className="transition-colors"
+      />
+      {/* Animated flow dot */}
+      <circle r="3" fill="var(--muted-foreground)" opacity="0.4">
+        <animateMotion dur="3s" repeatCount="indefinite" path={d} />
+      </circle>
+    </g>
   );
 }
 
@@ -1352,7 +1361,7 @@ function SequenceSettingsPanel({
 
 /* ─── Workflow Node Component ─── */
 function WorkflowNodeCard({
-  node, selected, onSelect, onDragStart, error, onDuplicate,
+  node, selected, onSelect, onDragStart, error, onDuplicate, onContextMenu,
 }: {
   node: WorkflowNode;
   selected: boolean;
@@ -1360,6 +1369,7 @@ function WorkflowNodeCard({
   onDragStart: (e: React.MouseEvent) => void;
   error?: string;
   onDuplicate?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const meta = NODE_META[node.type];
   const Icon = NODE_ICONS[node.type];
@@ -1379,6 +1389,7 @@ function WorkflowNodeCard({
     >
       <div
         onClick={onSelect}
+        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(e); }}
         className={`group relative flex cursor-pointer items-center gap-3 rounded-xl border-2 bg-background px-4 transition-all ${
           error
             ? "border-red-400 shadow-red-100"
@@ -1679,6 +1690,161 @@ function StatsBar({ nodeCount, emailCount, branchCount }: {
   );
 }
 
+/* ─── Minimap ─── */
+function Minimap({
+  nodes, edges, canvasW, canvasH, offsetX, offsetY, zoom,
+  containerRef,
+}: {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  canvasW: number;
+  canvasH: number;
+  offsetX: number;
+  offsetY: number;
+  zoom: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const MINIMAP_W = 180;
+  const MINIMAP_H = 120;
+
+  if (nodes.length === 0) return null;
+
+  const scale = Math.min(MINIMAP_W / canvasW, MINIMAP_H / canvasH);
+
+  // Viewport rect
+  const container = containerRef.current;
+  const vpX = container ? (container.scrollLeft / zoom) * scale : 0;
+  const vpY = container ? (container.scrollTop / zoom) * scale : 0;
+  const vpW = container ? (container.clientWidth / zoom) * scale : MINIMAP_W;
+  const vpH = container ? (container.clientHeight / zoom) * scale : MINIMAP_H;
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (!container) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const clickX = (e.clientX - rect.left) / scale;
+    const clickY = (e.clientY - rect.top) / scale;
+    container.scrollLeft = (clickX - container.clientWidth / zoom / 2) * zoom;
+    container.scrollTop = (clickY - container.clientHeight / zoom / 2) * zoom;
+  };
+
+  return (
+    <div
+      className="absolute bottom-4 right-4 z-30 cursor-pointer rounded-lg border border-border bg-background/90 backdrop-blur-sm shadow-sm overflow-hidden"
+      style={{ width: MINIMAP_W, height: MINIMAP_H }}
+      onClick={handleClick}
+    >
+      <svg width={MINIMAP_W} height={MINIMAP_H}>
+        {/* Edges */}
+        {edges.map((edge) => {
+          const src = nodes.find((n) => n.id === edge.source);
+          const tgt = nodes.find((n) => n.id === edge.target);
+          if (!src || !tgt) return null;
+          return (
+            <line
+              key={edge.id}
+              x1={(src.position.x + offsetX) * scale}
+              y1={(src.position.y + offsetY) * scale}
+              x2={(tgt.position.x + offsetX) * scale}
+              y2={(tgt.position.y + offsetY) * scale}
+              stroke="var(--border)"
+              strokeWidth={1}
+            />
+          );
+        })}
+        {/* Nodes */}
+        {nodes.map((node) => {
+          const meta = NODE_META[node.type];
+          return (
+            <rect
+              key={node.id}
+              x={(node.position.x + offsetX) * scale - 4}
+              y={(node.position.y + offsetY) * scale - 2}
+              width={8}
+              height={4}
+              rx={1}
+              fill={meta.color}
+              opacity={0.7}
+            />
+          );
+        })}
+        {/* Viewport rect */}
+        <rect
+          x={vpX}
+          y={vpY}
+          width={Math.min(vpW, MINIMAP_W)}
+          height={Math.min(vpH, MINIMAP_H)}
+          fill="var(--foreground)"
+          fillOpacity={0.06}
+          stroke="var(--foreground)"
+          strokeOpacity={0.3}
+          strokeWidth={1}
+          rx={2}
+        />
+      </svg>
+    </div>
+  );
+}
+
+/* ─── Context Menu (right-click on node) ─── */
+function NodeContextMenu({
+  x, y, node, onEdit, onDuplicate, onDelete, onClose,
+}: {
+  x: number;
+  y: number;
+  node: WorkflowNode;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  const isTrigger = node.type === "trigger";
+  const isEnd = node.type === "end";
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-50 w-44 rounded-lg border border-border bg-background p-1 shadow-lg animate-in fade-in slide-in-from-top-1 duration-100"
+      style={{ left: x, top: y }}
+    >
+      <button
+        onClick={onEdit}
+        className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-foreground transition-colors hover:bg-accent"
+      >
+        <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+        Edit
+      </button>
+      {!isTrigger && !isEnd && (
+        <button
+          onClick={onDuplicate}
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-foreground transition-colors hover:bg-accent"
+        >
+          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+          Duplicate
+        </button>
+      )}
+      {!isTrigger && (
+        <button
+          onClick={onDelete}
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-destructive transition-colors hover:bg-destructive/10"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main Workflow Builder ─── */
 interface WorkflowBuilderProps {
   workflow: WorkflowDefinition;
@@ -1693,9 +1859,11 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
   const [showSettings, setShowSettings] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<{ nodeId: string; offsetX: number; offsetY: number } | null>(null);
   const initializedRef = useRef(false);
+  const [minimapKey, setMinimapKey] = useState(0);
 
   const selectedNode = workflow.nodes.find((n) => n.id === selectedNodeId) ?? null;
 
@@ -1838,6 +2006,15 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
     };
     container.addEventListener("wheel", handler, { passive: false });
     return () => container.removeEventListener("wheel", handler);
+  }, []);
+
+  // ─── Scroll listener for minimap viewport update ───
+  useEffect(() => {
+    const container = canvasRef.current;
+    if (!container) return;
+    const handler = () => setMinimapKey((k) => k + 1);
+    container.addEventListener("scroll", handler, { passive: true });
+    return () => container.removeEventListener("scroll", handler);
   }, []);
 
   // ─── Undo/Redo keyboard shortcuts ───
@@ -2176,6 +2353,7 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
         onClick={(e) => {
           if (e.target === e.currentTarget || (e.target as HTMLElement).closest("[data-canvas-bg]")) {
             setSelectedNodeId(null);
+            setContextMenu(null);
           }
         }}
       >
@@ -2215,10 +2393,14 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
                 key={node.id}
                 node={{ ...node, position: { x: node.position.x + offsetX, y: node.position.y + offsetY } }}
                 selected={selectedNodeId === node.id}
-                onSelect={() => { setSelectedNodeId(node.id); setShowSettings(false); setShowTemplates(false); }}
+                onSelect={() => { setSelectedNodeId(node.id); setShowSettings(false); setShowTemplates(false); setContextMenu(null); }}
                 onDragStart={(e) => handleNodeDragStart(node.id, e)}
                 error={errorMap[node.id]}
                 onDuplicate={node.type !== "trigger" && node.type !== "end" ? () => duplicateNode(node.id) : undefined}
+                onContextMenu={(e) => {
+                  setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id });
+                  setSelectedNodeId(node.id);
+                }}
               />
             ))}
           </div>
@@ -2244,7 +2426,37 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
           onTemplates={() => { setShowTemplates(!showTemplates); setSelectedNodeId(null); setShowSettings(false); }}
           errorCount={validationErrors.length}
         />
+
+        {/* Minimap */}
+        <Minimap
+          key={minimapKey}
+          nodes={workflow.nodes}
+          edges={workflow.edges}
+          canvasW={canvasW}
+          canvasH={canvasH}
+          offsetX={offsetX}
+          offsetY={offsetY}
+          zoom={zoom}
+          containerRef={canvasRef}
+        />
       </div>
+
+      {/* Context menu */}
+      {contextMenu && (() => {
+        const ctxNode = workflow.nodes.find((n) => n.id === contextMenu.nodeId);
+        if (!ctxNode) return null;
+        return (
+          <NodeContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            node={ctxNode}
+            onEdit={() => { setSelectedNodeId(contextMenu.nodeId); setContextMenu(null); }}
+            onDuplicate={() => { duplicateNode(contextMenu.nodeId); setContextMenu(null); }}
+            onDelete={() => { deleteNode(contextMenu.nodeId); setContextMenu(null); }}
+            onClose={() => setContextMenu(null)}
+          />
+        );
+      })()}
 
       {/* Config panel */}
       {selectedNode && !showSettings && !showTemplates && (
