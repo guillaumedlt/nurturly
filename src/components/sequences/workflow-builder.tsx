@@ -1894,13 +1894,13 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
     const trigger = workflow.nodes.find((n) => n.type === "trigger");
     if (!trigger) return;
 
-    // Scroll so trigger is centered in viewport
+    // Center the trigger node in the viewport
     const triggerScreenX = (trigger.position.x + offsetX) * zoom;
     const triggerScreenY = (trigger.position.y + offsetY) * zoom;
 
     requestAnimationFrame(() => {
       container.scrollLeft = triggerScreenX - container.clientWidth / 2;
-      container.scrollTop = Math.max(0, triggerScreenY - 120);
+      container.scrollTop = triggerScreenY - container.clientHeight / 3;
     });
   }, [workflow.nodes, offsetX, offsetY, zoom]);
 
@@ -2314,69 +2314,74 @@ export function WorkflowBuilder({ workflow, onChange, emails, lists }: WorkflowB
 
   return (
     <div className="flex h-full">
-      {/* Canvas area */}
-      <div
-        ref={canvasRef}
-        className={`relative flex-1 overflow-auto bg-[var(--muted)] ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
-        style={{
-          backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
-          backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
-        }}
-        onMouseDown={handleCanvasMouseDown}
-      >
-        {/* Spacer div to create scrollable area at zoomed size */}
+      {/* Canvas wrapper (relative for overlay positioning) */}
+      <div className="relative flex-1">
+        {/* Scrollable canvas */}
         <div
-          data-canvas-bg
-          className="relative"
+          ref={canvasRef}
+          className={`absolute inset-0 overflow-auto bg-[var(--muted)] ${isPanning ? "cursor-grabbing" : "cursor-grab"}`}
           style={{
-            width: canvasW * zoom,
-            height: canvasH * zoom,
-            minHeight: "100%",
+            backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
+            backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
           }}
+          onMouseDown={handleCanvasMouseDown}
         >
-          {/* Content at natural scale, visually zoomed */}
+          {/* Spacer div to create scrollable area at zoomed size */}
           <div
-            className="origin-top-left"
+            data-canvas-bg
+            className="relative"
             style={{
-              width: canvasW,
-              height: canvasH,
-              transform: `scale(${zoom})`,
-              transformOrigin: "0 0",
+              width: canvasW * zoom,
+              height: canvasH * zoom,
+              minHeight: "100%",
             }}
           >
-            {/* SVG edges */}
-            <svg className="absolute inset-0 pointer-events-none" style={{ width: canvasW, height: canvasH }}>
+            {/* Content at natural scale, visually zoomed */}
+            <div
+              className="origin-top-left"
+              style={{
+                width: canvasW,
+                height: canvasH,
+                transform: `scale(${zoom})`,
+                transformOrigin: "0 0",
+              }}
+            >
+              {/* SVG edges */}
+              <svg className="absolute inset-0 pointer-events-none" style={{ width: canvasW, height: canvasH }}>
+                {edgeElements.map((edge) => (
+                  <EdgePath key={edge.id} x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} dashed={edge.dashed} />
+                ))}
+              </svg>
+
+              {/* Add node buttons on edges */}
               {edgeElements.map((edge) => (
-                <EdgePath key={edge.id} x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} dashed={edge.dashed} />
+                <AddNodeButton
+                  key={`add-${edge.id}`}
+                  x={edge.midX}
+                  y={edge.midY}
+                  onAdd={(type) => addNodeOnEdge(edge.id, type)}
+                />
               ))}
-            </svg>
 
-            {/* Add node buttons on edges */}
-            {edgeElements.map((edge) => (
-              <AddNodeButton
-                key={`add-${edge.id}`}
-                x={edge.midX}
-                y={edge.midY}
-                onAdd={(type) => addNodeOnEdge(edge.id, type)}
-              />
-            ))}
-
-            {/* Nodes */}
-            {workflow.nodes.map((node) => (
-              <WorkflowNodeCard
-                key={node.id}
-                node={{ ...node, position: { x: node.position.x + offsetX, y: node.position.y + offsetY } }}
-                selected={selectedNodeId === node.id}
-                onSelect={() => { setSelectedNodeId(node.id); setShowSettings(false); setShowTemplates(false); setContextMenu(null); }}
-                error={errorMap[node.id]}
-                onContextMenu={(e) => {
-                  setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id });
-                  setSelectedNodeId(node.id);
-                }}
-              />
-            ))}
+              {/* Nodes */}
+              {workflow.nodes.map((node) => (
+                <WorkflowNodeCard
+                  key={node.id}
+                  node={{ ...node, position: { x: node.position.x + offsetX, y: node.position.y + offsetY } }}
+                  selected={selectedNodeId === node.id}
+                  onSelect={() => { setSelectedNodeId(node.id); setShowSettings(false); setShowTemplates(false); setContextMenu(null); }}
+                  error={errorMap[node.id]}
+                  onContextMenu={(e) => {
+                    setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id });
+                    setSelectedNodeId(node.id);
+                  }}
+                />
+              ))}
+            </div>
           </div>
         </div>
+
+        {/* Fixed overlays (don't scroll with canvas) */}
 
         {/* Stats bar */}
         {nodeCount > 0 && (
