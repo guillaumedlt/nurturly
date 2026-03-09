@@ -8,7 +8,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { formatRelativeDate } from "@/lib/utils";
+import { toast } from "sonner";
 import Link from "next/link";
 
 interface CompanyProperty {
@@ -57,6 +59,8 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // Add contact form
   const [showAddContact, setShowAddContact] = useState(false);
   const [newEmail, setNewEmail] = useState("");
@@ -92,6 +96,9 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
     if (res.ok) {
       const updated = await res.json();
       setCompany((prev) => prev ? { ...prev, ...updated, contacts: prev.contacts } : prev);
+      toast.success("Company updated");
+    } else {
+      toast.error("Failed to update company");
     }
     setEditing(null);
   };
@@ -107,14 +114,25 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
     if (res.ok) {
       const updated = await res.json();
       setCompany((prev) => prev ? { ...prev, ...updated, contacts: prev.contacts } : prev);
+      toast.success("Property updated");
+    } else {
+      toast.error("Failed to update property");
     }
     setEditing(null);
   };
 
   const handleDelete = async () => {
     if (!company) return;
-    await fetch(`/api/companies/${company.id}`, { method: "DELETE" });
-    router.push("/companies");
+    setDeleting(true);
+    const res = await fetch(`/api/companies/${company.id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Company deleted");
+      router.push("/companies");
+    } else {
+      toast.error("Failed to delete company");
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   const handleAddContact = async () => {
@@ -139,7 +157,10 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
         setNewLastName("");
         setNewJobTitle("");
         setShowAddContact(false);
+        toast.success("Contact added to company");
         fetchCompany();
+      } else {
+        toast.error("Failed to add contact");
       }
     } finally {
       setAddingContact(false);
@@ -147,11 +168,16 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
   };
 
   const handleUnlinkContact = async (contactId: string) => {
-    await fetch(`/api/contacts/${contactId}`, {
+    const res = await fetch(`/api/contacts/${contactId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ companyId: null }),
     });
+    if (res.ok) {
+      toast.success("Contact removed from company");
+    } else {
+      toast.error("Failed to unlink contact");
+    }
     fetchCompany();
   };
 
@@ -195,10 +221,21 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ compan
         <Link href="/companies" className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground">
           <ArrowLeft className="h-3.5 w-3.5" /> Companies
         </Link>
-        <Button variant="outline" size="sm" className="h-7 text-[11px] text-destructive hover:bg-destructive/10" onClick={handleDelete}>
+        <Button variant="outline" size="sm" className="h-7 text-[11px] text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
           <Trash2 className="mr-1 h-3 w-3" /> Delete
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete company"
+        description={`Are you sure you want to delete ${company.name}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         {/* ─── Left sidebar: Company info ─── */}

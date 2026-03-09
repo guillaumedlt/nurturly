@@ -5,6 +5,7 @@ import { sequences } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { createDefaultWorkflow } from "@/lib/sequences/types";
 import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
+import { workspaceScope } from "@/lib/workspace";
 
 export async function GET() {
   const session = await auth();
@@ -12,6 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const scope = await workspaceScope(sequences.userId, session.user.id);
   const rows = await db
     .select({
       id: sequences.id,
@@ -26,7 +28,7 @@ export async function GET() {
       updatedAt: sequences.updatedAt,
     })
     .from(sequences)
-    .where(eq(sequences.userId, session.user.id))
+    .where(scope)
     .orderBy(desc(sequences.updatedAt));
 
   return NextResponse.json({ sequences: rows });

@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { Toaster } from "sonner";
 
 export default function DashboardLayout({
   children,
@@ -19,6 +20,13 @@ export default function DashboardLayout({
         </main>
       </div>
       <CommandPalette />
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          className: "text-[13px]",
+          duration: 3000,
+        }}
+      />
     </div>
   );
 }

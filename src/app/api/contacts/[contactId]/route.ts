@@ -4,6 +4,7 @@ import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { contacts, listMemberships, lists, analyticsEvents, sequenceEnrollments, sequences } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { workspaceScope } from "@/lib/workspace";
 
 export async function GET(
   _request: NextRequest,
@@ -16,10 +17,11 @@ export async function GET(
 
   const { contactId } = await params;
 
+  const scope = await workspaceScope(contacts.userId, session.user.id);
   const [contact] = await db
     .select()
     .from(contacts)
-    .where(and(eq(contacts.id, contactId), eq(contacts.userId, session.user.id)));
+    .where(and(eq(contacts.id, contactId), scope));
 
   if (!contact) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -96,10 +98,11 @@ export async function PATCH(
   if (body.subscribed !== undefined) updates.subscribed = body.subscribed;
   if (body.properties !== undefined) updates.properties = JSON.stringify(body.properties);
 
+  const scope = await workspaceScope(contacts.userId, session.user.id);
   const [updated] = await db
     .update(contacts)
     .set(updates)
-    .where(and(eq(contacts.id, contactId), eq(contacts.userId, session.user.id)))
+    .where(and(eq(contacts.id, contactId), scope))
     .returning();
 
   if (!updated) {
@@ -123,9 +126,10 @@ export async function DELETE(
 
   const { contactId } = await params;
 
+  const scope = await workspaceScope(contacts.userId, session.user.id);
   await db
     .delete(contacts)
-    .where(and(eq(contacts.id, contactId), eq(contacts.userId, session.user.id)));
+    .where(and(eq(contacts.id, contactId), scope));
 
   return NextResponse.json({ ok: true });
 }

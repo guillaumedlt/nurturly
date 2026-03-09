@@ -4,6 +4,7 @@ import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { companies, contacts } from "@/lib/db/schema";
 import { eq, desc, and, ilike, or, sql, count } from "drizzle-orm";
+import { workspaceScope } from "@/lib/workspace";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * limit;
   const all = params.get("all"); // for autocomplete
 
-  const conditions = [eq(companies.userId, session.user.id)];
+  const scope = await workspaceScope(companies.userId, session.user.id);
+  const conditions = [scope];
 
   if (search.trim()) {
     const q = `%${search.trim()}%`;
@@ -70,7 +72,7 @@ export async function GET(request: NextRequest) {
       })
       .from(contacts)
       .where(and(
-        eq(contacts.userId, session.user.id),
+        await workspaceScope(contacts.userId, session.user.id),
         sql`${contacts.companyId} IN (${sql.join(companyIds.map((id) => sql`${id}`), sql`, `)})`
       ))
       .groupBy(contacts.companyId);

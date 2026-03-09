@@ -4,6 +4,7 @@ import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { companies, contacts } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { workspaceScope } from "@/lib/workspace";
 
 export async function GET(
   _request: NextRequest,
@@ -16,16 +17,18 @@ export async function GET(
 
   const { companyId } = await params;
 
+  const scope = await workspaceScope(companies.userId, session.user.id);
   const [company] = await db
     .select()
     .from(companies)
-    .where(and(eq(companies.id, companyId), eq(companies.userId, session.user.id)));
+    .where(and(eq(companies.id, companyId), scope));
 
   if (!company) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // Get associated contacts
+  const contactScope = await workspaceScope(contacts.userId, session.user.id);
   const associatedContacts = await db
     .select({
       id: contacts.id,
@@ -38,7 +41,7 @@ export async function GET(
       createdAt: contacts.createdAt,
     })
     .from(contacts)
-    .where(and(eq(contacts.companyId, companyId), eq(contacts.userId, session.user.id)))
+    .where(and(eq(contacts.companyId, companyId), contactScope))
     .orderBy(desc(contacts.createdAt));
 
   return NextResponse.json({
@@ -73,10 +76,11 @@ export async function PATCH(
   if (body.properties !== undefined) updates.properties = JSON.stringify(body.properties);
   updates.updatedAt = new Date();
 
+  const scope = await workspaceScope(companies.userId, session.user.id);
   const [updated] = await db
     .update(companies)
     .set(updates)
-    .where(and(eq(companies.id, companyId), eq(companies.userId, session.user.id)))
+    .where(and(eq(companies.id, companyId), scope))
     .returning();
 
   if (!updated) {
@@ -100,9 +104,10 @@ export async function DELETE(
 
   const { companyId } = await params;
 
+  const scope = await workspaceScope(companies.userId, session.user.id);
   await db
     .delete(companies)
-    .where(and(eq(companies.id, companyId), eq(companies.userId, session.user.id)));
+    .where(and(eq(companies.id, companyId), scope));
 
   return NextResponse.json({ ok: true });
 }

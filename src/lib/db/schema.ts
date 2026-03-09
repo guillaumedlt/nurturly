@@ -95,6 +95,45 @@ export const verificationTokens = pgTable("verification_tokens", {
   primaryKey({ columns: [table.identifier, table.token] }),
 ]);
 
+// ── Workspaces ──
+
+export const memberRoleEnum = pgEnum("member_role", ["owner", "admin", "member"]);
+export const invitationStatusEnum = pgEnum("invitation_status", ["pending", "accepted", "expired"]);
+
+export const workspaces = pgTable("workspaces", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  slug: text("slug").unique(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const workspaceMembers = pgTable("workspace_members", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: memberRoleEnum("role").notNull().default("member"),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("workspace_member_idx").on(table.workspaceId, table.userId),
+]);
+
+export const workspaceInvitations = pgTable("workspace_invitations", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: memberRoleEnum("role").notNull().default("member"),
+  status: invitationStatusEnum("status").notNull().default("pending"),
+  invitedBy: text("invited_by").notNull().references(() => users.id),
+  token: text("token").notNull().$defaultFn(() => crypto.randomUUID()),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (table) => [
+  uniqueIndex("invitation_workspace_email_idx").on(table.workspaceId, table.email),
+  index("invitation_token_idx").on(table.token),
+]);
+
 // ── Contacts ──
 
 export const contacts = pgTable("contacts", {

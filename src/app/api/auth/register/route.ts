@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { users, workspaces, workspaceMembers } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
@@ -53,6 +53,22 @@ export async function POST(request: NextRequest) {
       emailVerified: new Date(),
     })
     .returning({ id: users.id, email: users.email });
+
+  // Auto-create workspace for new user
+  const workspaceName = name?.trim() ? `${name.trim()}'s workspace` : `${email.split("@")[0]}'s workspace`;
+  const [workspace] = await db
+    .insert(workspaces)
+    .values({
+      name: workspaceName,
+      ownerId: created.id,
+    })
+    .returning({ id: workspaces.id });
+
+  await db.insert(workspaceMembers).values({
+    workspaceId: workspace.id,
+    userId: created.id,
+    role: "owner",
+  });
 
   return NextResponse.json(
     { id: created.id, email: created.email },

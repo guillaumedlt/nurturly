@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { emails } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
+import { workspaceScope } from "@/lib/workspace";
 
 export async function GET() {
   const session = await auth();
@@ -11,6 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const scope = await workspaceScope(emails.userId, session.user.id);
   const rows = await db
     .select({
       id: emails.id,
@@ -21,7 +23,7 @@ export async function GET() {
       createdAt: emails.createdAt,
     })
     .from(emails)
-    .where(eq(emails.userId, session.user.id))
+    .where(scope)
     .orderBy(desc(emails.updatedAt));
 
   return NextResponse.json({ emails: rows });

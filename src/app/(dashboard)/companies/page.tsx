@@ -5,7 +5,9 @@ import { Plus, Building2, Search, Trash2, ChevronLeft, ChevronRight, Globe, User
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { formatRelativeDate, formatPropValue } from "@/lib/utils";
+import { toast } from "sonner";
 import Link from "next/link";
 
 interface CompanyProperty {
@@ -58,6 +60,10 @@ export default function CompaniesPage() {
   const [showColumns, setShowColumns] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(DEFAULT_VISIBLE);
 
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   // Add company form state
   const [newName, setNewName] = useState("");
   const [newDomain, setNewDomain] = useState("");
@@ -96,16 +102,44 @@ export default function CompaniesPage() {
     return () => clearTimeout(timer);
   }, [fetchCompanies]);
 
-  const handleDelete = async (id: string) => {
-    await fetch(`/api/companies/${id}`, { method: "DELETE" });
-    fetchCompanies();
-    setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  const handleDeleteConfirmed = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/companies/${deleteConfirm.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(`"${deleteConfirm.name}" has been deleted`);
+        setSelected((prev) => { const next = new Set(prev); next.delete(deleteConfirm.id); return next; });
+        fetchCompanies();
+      } else {
+        toast.error("Failed to delete company");
+      }
+    } catch {
+      toast.error("Failed to delete company");
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(null);
+    }
   };
 
-  const handleBulkDelete = async () => {
-    await Promise.all(Array.from(selected).map((id) => fetch(`/api/companies/${id}`, { method: "DELETE" })));
-    setSelected(new Set());
-    fetchCompanies();
+  const handleBulkDeleteConfirmed = async () => {
+    setDeleting(true);
+    try {
+      const results = await Promise.all(Array.from(selected).map((id) => fetch(`/api/companies/${id}`, { method: "DELETE" })));
+      const failed = results.filter((r) => !r.ok).length;
+      if (failed === 0) {
+        toast.success(`${selected.size} compan${selected.size !== 1 ? "ies" : "y"} deleted`);
+      } else {
+        toast.error(`Failed to delete ${failed} compan${failed !== 1 ? "ies" : "y"}`);
+      }
+      setSelected(new Set());
+      fetchCompanies();
+    } catch {
+      toast.error("Failed to delete companies");
+    } finally {
+      setDeleting(false);
+      setBulkDeleteConfirm(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -122,12 +156,17 @@ export default function CompaniesPage() {
         }),
       });
       if (res.ok) {
+        toast.success(`"${newName.trim()}" has been created`);
         setNewName("");
         setNewDomain("");
         setNewIndustry("");
         setAddOpen(false);
         fetchCompanies();
+      } else {
+        toast.error("Failed to create company");
       }
+    } catch {
+      toast.error("Failed to create company");
     } finally {
       setSaving(false);
     }
@@ -259,7 +298,7 @@ export default function CompaniesPage() {
               {selected.size > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] text-muted-foreground">{selected.size} selected</span>
-                  <Button variant="outline" size="sm" className="h-7 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={handleBulkDelete}>
+                  <Button variant="outline" size="sm" className="h-7 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setBulkDeleteConfirm(true)}>
                     <Trash2 className="mr-1 h-3 w-3" />
                     Delete
                   </Button>
@@ -476,7 +515,7 @@ export default function CompaniesPage() {
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
                           <button
                             type="button"
-                            onClick={() => handleDelete(company.id)}
+                            onClick={() => setDeleteConfirm({ id: company.id, name: company.name })}
                             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -508,6 +547,29 @@ export default function CompaniesPage() {
           )}
         </>
       )}
+      {/* Single delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        title="Delete company"
+        description={`Are you sure you want to delete "${deleteConfirm?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleting}
+        onConfirm={handleDeleteConfirmed}
+      />
+
+      {/* Bulk delete confirmation */}
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        title="Delete companies"
+        description={`Are you sure you want to delete ${selected.size} compan${selected.size !== 1 ? "ies" : "y"}? This action cannot be undone.`}
+        confirmLabel={`Delete ${selected.size} compan${selected.size !== 1 ? "ies" : "y"}`}
+        variant="destructive"
+        loading={deleting}
+        onConfirm={handleBulkDeleteConfirmed}
+      />
     </div>
   );
 }

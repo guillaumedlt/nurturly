@@ -9,7 +9,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { formatRelativeDate } from "@/lib/utils";
+import { toast } from "sonner";
 import Link from "next/link";
 import type { ContactProperty } from "@/lib/contacts/types";
 
@@ -62,6 +64,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
   const [activeTab, setActiveTab] = useState<"activity" | "audiences" | "sequences">("activity");
   const [newTag, setNewTag] = useState("");
   const [showTagInput, setShowTagInput] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // Company autocomplete
   const [companySearch, setCompanySearch] = useState("");
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string; domain: string | null }[]>([]);
@@ -103,6 +107,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
     if (res.ok) {
       const updated = await res.json();
       setContact((prev) => prev ? { ...prev, ...updated } : prev);
+      toast.success("Contact updated");
+    } else {
+      toast.error("Failed to update contact");
     }
     setEditing(null);
   };
@@ -118,6 +125,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
     if (res.ok) {
       const updated = await res.json();
       setContact((prev) => prev ? { ...prev, ...updated } : prev);
+      toast.success("Property updated");
+    } else {
+      toast.error("Failed to update property");
     }
     setEditing(null);
   };
@@ -133,10 +143,13 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
       const updated = await res.json();
       setContact((prev) => prev ? { ...prev, ...updated } : prev);
       setCompanyInfo({ id: cId, name: cName, domain: null, industry: null });
+      toast.success(`Linked to ${cName}`);
       // Refetch company details
       fetch(`/api/companies/${cId}`)
         .then((r) => r.ok ? r.json() : null)
         .then((data) => { if (data) setCompanyInfo({ id: data.id, name: data.name, domain: data.domain, industry: data.industry }); });
+    } else {
+      toast.error("Failed to link company");
     }
     setShowCompanyPicker(false);
     setCompanySearch("");
@@ -153,6 +166,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
       const updated = await res.json();
       setContact((prev) => prev ? { ...prev, ...updated } : prev);
       setCompanyInfo(null);
+      toast.success("Company unlinked");
+    } else {
+      toast.error("Failed to unlink company");
     }
   };
 
@@ -164,7 +180,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
     });
     if (res.ok) {
       const created = await res.json();
+      toast.success(`Company "${created.name}" created`);
       await linkCompany(created.id, created.name);
+    } else {
+      toast.error("Failed to create company");
     }
   };
 
@@ -184,8 +203,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
 
   const handleDelete = async () => {
     if (!contact) return;
-    await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
-    router.push("/contacts");
+    setDeleting(true);
+    const res = await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Contact deleted");
+      router.push("/contacts");
+    } else {
+      toast.error("Failed to delete contact");
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   const startEdit = (field: string, currentValue: string) => {
@@ -231,10 +258,21 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
         <Link href="/contacts" className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground">
           <ArrowLeft className="h-3.5 w-3.5" /> Contacts
         </Link>
-        <Button variant="outline" size="sm" className="h-7 text-[11px] text-destructive hover:bg-destructive/10" onClick={handleDelete}>
+        <Button variant="outline" size="sm" className="h-7 text-[11px] text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
           <Trash2 className="mr-1 h-3 w-3" /> Delete
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete contact"
+        description={`Are you sure you want to delete ${name}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         {/* ─── Left sidebar: Contact info ─── */}

@@ -4,6 +4,7 @@ import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
 import { db } from "@/lib/db";
 import { contacts, listMemberships } from "@/lib/db/schema";
 import { eq, desc, and, ilike, or, sql, count } from "drizzle-orm";
+import { workspaceScope } from "@/lib/workspace";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -19,7 +20,8 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(100, Math.max(1, parseInt(params.get("limit") || "50")));
   const offset = (page - 1) * limit;
 
-  const conditions = [eq(contacts.userId, session.user.id)];
+  const scope = await workspaceScope(contacts.userId, session.user.id);
+  const conditions = [scope];
 
   if (search.trim()) {
     const q = `%${search.trim()}%`;

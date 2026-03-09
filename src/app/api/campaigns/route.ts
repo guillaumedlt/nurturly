@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { campaigns, lists, emails } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { parseJsonBody, isErrorResponse } from "@/lib/api-utils";
+import { workspaceScope } from "@/lib/workspace";
 
 export async function GET() {
   const session = await auth();
@@ -11,6 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const scope = await workspaceScope(campaigns.userId, session.user.id);
   const rows = await db
     .select({
       id: campaigns.id,
@@ -32,7 +34,7 @@ export async function GET() {
     .from(campaigns)
     .leftJoin(lists, eq(campaigns.listId, lists.id))
     .leftJoin(emails, eq(campaigns.emailId, emails.id))
-    .where(eq(campaigns.userId, session.user.id))
+    .where(scope)
     .orderBy(desc(campaigns.updatedAt));
 
   return NextResponse.json({ campaigns: rows });

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Trash2, GripVertical, Settings, Tag, Lock, Mail, User, Building2, Briefcase, Phone, Globe } from "lucide-react";
+import { Plus, Trash2, GripVertical, Tag, Lock, Mail, User, Building2, Briefcase, Phone, Globe, Shield, Crown, UserPlus, LogOut, MoreHorizontal, Check, X, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface Property {
   id: string;
@@ -49,7 +51,33 @@ const COMPANY_BUILTINS = [
   { name: "website", label: "Website", type: "URL", icon: Globe, required: false },
 ];
 
-type TabKey = "contact-properties" | "company-properties" | "general";
+type TabKey = "contact-properties" | "company-properties" | "profile" | "team";
+
+interface Profile {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  createdAt: string;
+}
+
+interface TeamMember {
+  id: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  role: "owner" | "admin" | "member";
+  joinedAt: string;
+}
+
+interface Invitation {
+  id: string;
+  email: string;
+  role: "admin" | "member";
+  status: "pending" | "accepted" | "expired";
+  createdAt: string;
+  expiresAt: string;
+}
 
 export default function SettingsPage() {
   const [contactProps, setContactProps] = useState<Property[]>([]);
@@ -61,6 +89,26 @@ export default function SettingsPage() {
   const [newGroup, setNewGroup] = useState("Custom");
   const [newOptions, setNewOptions] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("contact-properties");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
+
+  // Profile state
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Team state
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [inviting, setInviting] = useState(false);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const fetchProperties = useCallback(async () => {
     const [contactRes, companyRes] = await Promise.all([
@@ -79,6 +127,169 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => { fetchProperties(); }, [fetchProperties]);
+
+  // Fetch profile
+  const fetchProfile = useCallback(async () => {
+    const res = await fetch("/api/profile");
+    if (res.ok) {
+      const data = await res.json();
+      setProfile(data);
+      setProfileName(data.name || "");
+      setProfileEmail(data.email);
+    }
+  }, []);
+
+  // Fetch team
+  const fetchTeam = useCallback(async () => {
+    setTeamLoading(true);
+    try {
+      const [membersRes, invitesRes] = await Promise.all([
+        fetch("/api/team/members"),
+        fetch("/api/team/invitations"),
+      ]);
+      if (membersRes.ok) {
+        const data = await membersRes.json();
+        setMembers(data.members || []);
+      }
+      if (invitesRes.ok) {
+        const data = await invitesRes.json();
+        setInvitations(data.invitations || []);
+      }
+    } finally {
+      setTeamLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "profile" && !profile) fetchProfile();
+    if (activeTab === "team") fetchTeam();
+  }, [activeTab, profile, fetchProfile, fetchTeam]);
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profileName.trim(), email: profileEmail.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(data);
+        toast.success("Profile updated");
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to update profile");
+      }
+    } catch {
+      toast.error("Failed to update profile");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords don't match");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (res.ok) {
+        toast.success("Password changed");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to change password");
+      }
+    } catch {
+      toast.error("Failed to change password");
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const res = await fetch("/api/team/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole }),
+      });
+      if (res.ok) {
+        toast.success(`Invitation sent to ${inviteEmail}`);
+        setInviteEmail("");
+        fetchTeam();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to send invitation");
+      }
+    } catch {
+      toast.error("Failed to send invitation");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleUpdateRole = async (memberId: string, role: string) => {
+    const res = await fetch(`/api/team/members`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId, role }),
+    });
+    if (res.ok) {
+      toast.success("Role updated");
+      fetchTeam();
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to update role");
+    }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!removeMemberConfirm) return;
+    const res = await fetch(`/api/team/members`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId: removeMemberConfirm.id }),
+    });
+    if (res.ok) {
+      toast.success("Member removed");
+      setRemoveMemberConfirm(null);
+      fetchTeam();
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to remove member");
+      setRemoveMemberConfirm(null);
+    }
+  };
+
+  const handleCancelInvitation = async (invitationId: string) => {
+    const res = await fetch(`/api/team/invitations`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invitationId }),
+    });
+    if (res.ok) {
+      toast.success("Invitation cancelled");
+      fetchTeam();
+    } else {
+      toast.error("Failed to cancel invitation");
+    }
+  };
 
   const isCompanyTab = activeTab === "company-properties";
   const currentProps = isCompanyTab ? companyProps : contactProps;
@@ -112,19 +323,40 @@ export default function SettingsPage() {
         setNewType("text");
         setNewGroup("Custom");
         setNewOptions("");
+        toast.success("Property created");
+      } else {
+        toast.error("Failed to create property");
       }
+    } catch {
+      toast.error("Failed to create property");
     } finally {
       setCreating(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    await fetch(apiEndpoint, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    setCurrentProps((prev) => prev.filter((p) => p.id !== id));
+  const handleDelete = (id: string, label: string) => {
+    setDeleteConfirm({ id, label });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    try {
+      const res = await fetch(apiEndpoint, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: deleteConfirm.id }),
+      });
+      if (res.ok) {
+        setCurrentProps((prev) => prev.filter((p) => p.id !== deleteConfirm.id));
+        toast.success("Property deleted");
+      } else {
+        toast.error("Failed to delete property");
+      }
+    } catch {
+      toast.error("Failed to delete property");
+    } finally {
+      setDeleteConfirm(null);
+    }
   };
 
   // Group properties
@@ -268,7 +500,7 @@ export default function SettingsPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleDelete(prop.id)}
+                    onClick={() => handleDelete(prop.id, prop.label)}
                     className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -292,9 +524,10 @@ export default function SettingsPage() {
       {/* Tabs */}
       <div className="flex items-center gap-0 border-b border-border">
         {[
+          { key: "profile" as TabKey, label: "Profile" },
+          { key: "team" as TabKey, label: "Team" },
           { key: "contact-properties" as TabKey, label: "Contact Properties" },
           { key: "company-properties" as TabKey, label: "Company Properties" },
-          { key: "general" as TabKey, label: "General" },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -316,15 +549,261 @@ export default function SettingsPage() {
 
       {(activeTab === "contact-properties" || activeTab === "company-properties") && renderPropertiesTab()}
 
-      {activeTab === "general" && (
-        <div className="rounded-xl border border-border bg-background p-5">
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Settings className="h-8 w-8 text-muted-foreground/30" strokeWidth={1.5} />
-            <p className="mt-3 text-[13px] font-medium text-foreground">General settings</p>
-            <p className="mt-1 text-[12px] text-muted-foreground">Account settings, sender configuration, and domain verification coming soon.</p>
-          </div>
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}
+        title="Delete property"
+        description={`Are you sure you want to delete "${deleteConfirm?.label}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={confirmDelete}
+      />
+
+      {/* Profile Tab */}
+      {activeTab === "profile" && (
+        <div className="space-y-6">
+          {!profile ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              {/* Profile info */}
+              <div className="rounded-xl border border-border bg-background p-5">
+                <h3 className="text-[13px] font-medium text-foreground mb-4">Profile information</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Full name</label>
+                    <input
+                      type="text"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      placeholder="Your name"
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Email</label>
+                    <input
+                      type="email"
+                      value={profileEmail}
+                      onChange={(e) => setProfileEmail(e.target.value)}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    size="sm"
+                    className="h-8 text-[12px]"
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile || (profileName === (profile.name || "") && profileEmail === profile.email)}
+                  >
+                    {savingProfile ? "Saving..." : "Save changes"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Change password */}
+              <div className="rounded-xl border border-border bg-background p-5">
+                <h3 className="text-[13px] font-medium text-foreground mb-4">Change password</h3>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Current password</label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">New password</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Min 8 characters"
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Confirm password</label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    size="sm"
+                    className="h-8 text-[12px]"
+                    onClick={handleChangePassword}
+                    disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                  >
+                    {changingPassword ? "Changing..." : "Change password"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Account info */}
+              <div className="rounded-xl border border-border bg-background p-5">
+                <h3 className="text-[13px] font-medium text-foreground mb-3">Account</h3>
+                <div className="space-y-2 text-[12px] text-muted-foreground">
+                  <p>Account ID: <span className="font-mono text-foreground">{profile.id.slice(0, 8)}</span></p>
+                  <p>Member since: <span className="text-foreground">{new Date(profile.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span></p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
+
+      {/* Team Tab */}
+      {activeTab === "team" && (
+        <div className="space-y-6">
+          {/* Invite form */}
+          <div className="rounded-xl border border-border bg-background p-5">
+            <h3 className="text-[13px] font-medium text-foreground mb-4">Invite team member</h3>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="colleague@company.com"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40"
+                  onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+                />
+              </div>
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
+                className="h-9 w-32 rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+              <Button size="sm" className="h-9 text-[12px]" onClick={handleInvite} disabled={!inviteEmail.trim() || inviting}>
+                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                {inviting ? "Sending..." : "Invite"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Members list */}
+          <div>
+            <h4 className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              Members ({members.length})
+            </h4>
+            {teamLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
+              </div>
+            ) : members.length === 0 ? (
+              <div className="rounded-xl border border-border bg-background">
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <User className="h-7 w-7 text-muted-foreground/30" strokeWidth={1.5} />
+                  <p className="mt-3 text-[13px] font-medium text-foreground">No team members yet</p>
+                  <p className="mt-1 text-[12px] text-muted-foreground">Invite your first team member above.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-background divide-y divide-border">
+                {members.map((member) => (
+                  <div key={member.id} className="group flex items-center gap-3 px-5 py-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[12px] font-medium text-muted-foreground">
+                      {(member.name || member.email).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-foreground">{member.name || member.email}</span>
+                        {member.role === "owner" && (
+                          <span className="flex items-center gap-0.5 text-[10px] font-medium text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                            <Crown className="h-2.5 w-2.5" /> Owner
+                          </span>
+                        )}
+                        {member.role === "admin" && (
+                          <span className="flex items-center gap-0.5 text-[10px] font-medium text-blue-600 bg-blue-500/10 px-1.5 py-0.5 rounded-full">
+                            <Shield className="h-2.5 w-2.5" /> Admin
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">{member.email}</span>
+                    </div>
+                    {member.role !== "owner" && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <select
+                          value={member.role}
+                          onChange={(e) => handleUpdateRole(member.id, e.target.value)}
+                          className="h-7 rounded-md border border-input bg-background px-2 text-[11px] outline-none"
+                        >
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setRemoveMemberConfirm({ id: member.id, name: member.name || member.email })}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pending invitations */}
+          {invitations.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                Pending invitations ({invitations.filter((i) => i.status === "pending").length})
+              </h4>
+              <div className="rounded-xl border border-border bg-background divide-y divide-border">
+                {invitations.filter((i) => i.status === "pending").map((invite) => (
+                  <div key={invite.id} className="group flex items-center gap-3 px-5 py-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-[12px] text-muted-foreground">
+                      <Mail className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[13px] text-foreground">{invite.email}</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="outline" className="text-[10px] font-normal">{invite.role}</Badge>
+                        <span className="text-[11px] text-muted-foreground">
+                          Expires {new Date(invite.expiresAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCancelInvitation(invite.id)}
+                      className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Remove member confirm */}
+      <ConfirmDialog
+        open={!!removeMemberConfirm}
+        onOpenChange={() => setRemoveMemberConfirm(null)}
+        title="Remove team member"
+        description={`Are you sure you want to remove ${removeMemberConfirm?.name}? They will lose access to this workspace.`}
+        confirmLabel="Remove"
+        onConfirm={handleRemoveMember}
+      />
     </div>
   );
 }

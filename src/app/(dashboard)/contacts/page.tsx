@@ -10,6 +10,8 @@ import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { ImportContactsDialog } from "@/components/contacts/import-contacts-dialog";
 import Link from "next/link";
 import type { ContactProperty } from "@/lib/contacts/types";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface Contact {
   id: string;
@@ -53,6 +55,8 @@ export default function ContactsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Set<string>>(DEFAULT_VISIBLE);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -88,16 +92,47 @@ export default function ContactsPage() {
     return () => clearTimeout(timer);
   }, [fetchContacts]);
 
-  const handleDelete = async (id: string) => {
-    await fetch(`/api/contacts/${id}`, { method: "DELETE" });
-    fetchContacts();
-    setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  const handleDelete = (contact: Contact) => {
+    const name = getName(contact) || contact.email;
+    setDeleteConfirm({ id: contact.id, name });
   };
 
-  const handleBulkDelete = async () => {
-    await Promise.all(Array.from(selected).map((id) => fetch(`/api/contacts/${id}`, { method: "DELETE" })));
-    setSelected(new Set());
-    fetchContacts();
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    try {
+      const res = await fetch(`/api/contacts/${deleteConfirm.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Contact deleted");
+        fetchContacts();
+        setSelected((prev) => { const next = new Set(prev); next.delete(deleteConfirm.id); return next; });
+      } else {
+        toast.error("Failed to delete contact");
+      }
+    } finally {
+      setDeleteConfirm(null);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    setBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    try {
+      const results = await Promise.all(
+        Array.from(selected).map((id) => fetch(`/api/contacts/${id}`, { method: "DELETE" }))
+      );
+      const allOk = results.every((r) => r.ok);
+      if (allOk) {
+        toast.success(`${selected.size} contact${selected.size !== 1 ? "s" : ""} deleted`);
+      } else {
+        toast.error("Some contacts could not be deleted");
+      }
+      setSelected(new Set());
+      fetchContacts();
+    } finally {
+      setBulkDeleteConfirm(false);
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -480,7 +515,7 @@ export default function ContactsPage() {
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
                           <button
                             type="button"
-                            onClick={() => handleDelete(contact.id)}
+                            onClick={() => handleDelete(contact)}
                             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -515,6 +550,23 @@ export default function ContactsPage() {
 
       <AddContactDialog open={addOpen} onOpenChange={setAddOpen} onCreated={fetchContacts} />
       <ImportContactsDialog open={importOpen} onOpenChange={setImportOpen} onImported={fetchContacts} />
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        onOpenChange={() => setDeleteConfirm(null)}
+        title="Delete contact"
+        description={`Are you sure you want to delete ${deleteConfirm?.name || "this contact"}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+      />
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={() => setBulkDeleteConfirm(false)}
+        title="Delete contacts"
+        description={`Are you sure you want to delete ${selected.size} contact${selected.size !== 1 ? "s" : ""}? This action cannot be undone.`}
+        confirmLabel="Delete all"
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   );
 }
