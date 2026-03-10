@@ -32,11 +32,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
+  const listType = body.type || "static";
   const [created] = await db.insert(lists).values({
     userId: session.user.id,
     name: body.name.trim(),
     description: body.description?.trim() || null,
-    type: body.type || "static",
+    type: listType,
+    ...(listType === "dynamic" && body.filterRules ? { filterRules: body.filterRules } : {}),
   }).returning();
 
   return NextResponse.json(created, { status: 201 });

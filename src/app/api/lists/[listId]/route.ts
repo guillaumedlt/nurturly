@@ -43,6 +43,7 @@ export async function PATCH(
     .set({
       ...(body.name !== undefined && { name: body.name }),
       ...(body.description !== undefined && { description: body.description }),
+      ...(body.filterRules !== undefined && { filterRules: body.filterRules }),
       updatedAt: new Date(),
     })
     .where(and(eq(lists.id, listId), eq(lists.userId, session.user.id)))

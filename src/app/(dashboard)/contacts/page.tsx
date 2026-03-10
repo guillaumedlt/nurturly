@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Users, Search, Trash2, Building2, ChevronLeft, ChevronRight, Upload, Columns3, Check, X } from "lucide-react";
+import { Plus, Users, Search, Trash2, Building2, ChevronLeft, ChevronRight, Upload, Columns3, Check, X, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatRelativeDate, formatPropValue } from "@/lib/utils";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { ImportContactsDialog } from "@/components/contacts/import-contacts-dialog";
+import { AddToAudienceDialog } from "@/components/contacts/add-to-audience-dialog";
 import Link from "next/link";
 import type { ContactProperty } from "@/lib/contacts/types";
 import { toast } from "sonner";
@@ -60,6 +61,8 @@ export default function ContactsPage() {
   const [filters, setFilters] = useState<ContactFilters>(createEmptyFilters());
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [audienceDialogOpen, setAudienceDialogOpen] = useState(false);
+  const [audienceContactIds, setAudienceContactIds] = useState<string[]>([]);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -285,6 +288,10 @@ export default function ContactsPage() {
               {selected.size > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] text-muted-foreground">{selected.size} selected</span>
+                  <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => { setAudienceContactIds(Array.from(selected)); setAudienceDialogOpen(true); }}>
+                    <UserPlus className="mr-1 h-3 w-3" />
+                    Add to audience
+                  </Button>
                   <Button variant="outline" size="sm" className="h-7 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={handleBulkDelete}>
                     <Trash2 className="mr-1 h-3 w-3" />
                     Delete
@@ -527,6 +534,14 @@ export default function ContactsPage() {
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
                           <button
                             type="button"
+                            onClick={() => { setAudienceContactIds([contact.id]); setAudienceDialogOpen(true); }}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            title="Add to audience"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDelete(contact)}
                             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                           >
@@ -578,6 +593,13 @@ export default function ContactsPage() {
         description={`Are you sure you want to delete ${selected.size} contact${selected.size !== 1 ? "s" : ""}? This action cannot be undone.`}
         confirmLabel="Delete all"
         onConfirm={confirmBulkDelete}
+      />
+
+      <AddToAudienceDialog
+        open={audienceDialogOpen}
+        onOpenChange={setAudienceDialogOpen}
+        contactIds={audienceContactIds}
+        onDone={() => setSelected(new Set())}
       />
     </div>
   );
