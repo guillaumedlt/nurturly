@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { ListFilter, Check, Search } from "lucide-react";
+import { ListFilter, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface AudienceOption {
@@ -22,7 +21,6 @@ interface AddToAudienceDialogProps {
 
 export function AddToAudienceDialog({ open, onOpenChange, contactIds, onDone }: AddToAudienceDialogProps) {
   const [audiences, setAudiences] = useState<AudienceOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 

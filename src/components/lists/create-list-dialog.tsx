@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ContactFilterBuilder } from "@/components/contacts/contact-filter-builder";
 import { type ContactFilters, createEmptyFilters, hasActiveFilters } from "@/lib/contacts/filters";
 import type { ContactProperty } from "@/lib/contacts/types";
 
