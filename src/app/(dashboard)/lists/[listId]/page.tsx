@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Users, Zap } from "lucide-react";
+import { ArrowLeft, Users, Zap, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn, formatRelativeDate } from "@/lib/utils";
+import { AiEnrichDialog } from "@/components/contacts/ai-enrich-dialog";
 import Link from "next/link";
 
 interface ListDetail {
@@ -33,6 +35,7 @@ export default function ListDetailPage() {
   const [list, setList] = useState<ListDetail | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enrichOpen, setEnrichOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -75,7 +78,15 @@ export default function ListDetailPage() {
           </div>
           {list.description && <p className="text-[12px] text-muted-foreground">{list.description}</p>}
         </div>
-        <span className="text-[12px] text-muted-foreground">{members.length} contact{members.length !== 1 ? "s" : ""}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-muted-foreground">{members.length} contact{members.length !== 1 ? "s" : ""}</span>
+          {members.length > 0 && (
+            <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => setEnrichOpen(true)}>
+              <Sparkles className="mr-1 h-3 w-3" />
+              AI Enrich
+            </Button>
+          )}
+        </div>
       </div>
 
       {list.type === "dynamic" && (
@@ -142,6 +153,14 @@ export default function ListDetailPage() {
           </table>
         )}
       </div>
+
+      <AiEnrichDialog
+        open={enrichOpen}
+        onOpenChange={setEnrichOpen}
+        listId={listId}
+        listName={list.name}
+        onDone={fetchData}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Users, Search, Trash2, Building2, ChevronLeft, ChevronRight, Upload, Columns3, Check, X, UserPlus } from "lucide-react";
+import { Plus, Users, Search, Trash2, Building2, ChevronLeft, ChevronRight, Upload, Columns3, Check, X, UserPlus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -9,6 +9,7 @@ import { formatRelativeDate, formatPropValue } from "@/lib/utils";
 import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { ImportContactsDialog } from "@/components/contacts/import-contacts-dialog";
 import { AddToAudienceDialog } from "@/components/contacts/add-to-audience-dialog";
+import { AiEnrichDialog } from "@/components/contacts/ai-enrich-dialog";
 import Link from "next/link";
 import type { ContactProperty } from "@/lib/contacts/types";
 import { toast } from "sonner";
@@ -63,6 +64,8 @@ export default function ContactsPage() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [audienceDialogOpen, setAudienceDialogOpen] = useState(false);
   const [audienceContactIds, setAudienceContactIds] = useState<string[]>([]);
+  const [enrichOpen, setEnrichOpen] = useState(false);
+  const [enrichContactIds, setEnrichContactIds] = useState<string[] | undefined>(undefined);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -172,6 +175,8 @@ export default function ContactsPage() {
     return null;
   };
 
+  // Check if any AI properties exist
+  const hasAiProps = customProps.some((p) => p.type === "ai");
   // Active custom property columns
   const activeCustomCols = customProps.filter((p) => visibleCols.has(`prop:${p.name}`));
   // Active builtin columns
@@ -288,6 +293,12 @@ export default function ContactsPage() {
               {selected.size > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-[12px] text-muted-foreground">{selected.size} selected</span>
+                  {hasAiProps && (
+                    <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => { setEnrichContactIds(Array.from(selected)); setEnrichOpen(true); }}>
+                      <Sparkles className="mr-1 h-3 w-3" />
+                      AI Enrich
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => { setAudienceContactIds(Array.from(selected)); setAudienceDialogOpen(true); }}>
                     <UserPlus className="mr-1 h-3 w-3" />
                     Add to audience
@@ -297,6 +308,13 @@ export default function ContactsPage() {
                     Delete
                   </Button>
                 </div>
+              )}
+              {/* AI Enrich toolbar button (all contacts) */}
+              {hasAiProps && selected.size === 0 && (
+                <Button variant="outline" size="sm" className="h-8 text-[12px]" onClick={() => { setEnrichContactIds(undefined); setEnrichOpen(true); }}>
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  AI Enrich
+                </Button>
               )}
 
               {/* Column picker */}
@@ -600,6 +618,13 @@ export default function ContactsPage() {
         onOpenChange={setAudienceDialogOpen}
         contactIds={audienceContactIds}
         onDone={() => setSelected(new Set())}
+      />
+
+      <AiEnrichDialog
+        open={enrichOpen}
+        onOpenChange={setEnrichOpen}
+        contactIds={enrichContactIds}
+        onDone={() => { setSelected(new Set()); fetchContacts(); }}
       />
     </div>
   );
