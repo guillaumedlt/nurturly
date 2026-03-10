@@ -14,6 +14,8 @@ interface Property {
   type: string;
   groupName: string;
   options: string[] | null;
+  aiPrompt: string | null;
+  aiConfigId: string | null;
   required: boolean;
   position: number;
 }
@@ -28,6 +30,7 @@ const PROPERTY_TYPES = [
   { value: "url", label: "URL" },
   { value: "email", label: "Email" },
   { value: "phone", label: "Phone" },
+  { value: "ai", label: "AI Generated" },
 ];
 
 const CONTACT_GROUPS = ["Contact info", "Company info", "Deal info", "Custom"];
@@ -115,6 +118,8 @@ export default function SettingsPage() {
   const [newType, setNewType] = useState("text");
   const [newGroup, setNewGroup] = useState("Custom");
   const [newOptions, setNewOptions] = useState("");
+  const [newAiPrompt, setNewAiPrompt] = useState("");
+  const [newAiConfigId, setNewAiConfigId] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("contact-properties");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
 
@@ -221,7 +226,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === "profile" && !profile) fetchProfile();
     if (activeTab === "team") fetchTeam();
-    if (activeTab === "ai" && !aiLoaded) fetchAiConfigs();
+    if ((activeTab === "ai" || activeTab === "contact-properties" || activeTab === "company-properties") && !aiLoaded) fetchAiConfigs();
   }, [activeTab, profile, fetchProfile, fetchTeam, aiLoaded, fetchAiConfigs]);
 
   const resetAiForm = () => {
@@ -475,6 +480,10 @@ export default function SettingsPage() {
       if ((newType === "select" || newType === "multi_select") && newOptions.trim()) {
         body.options = newOptions.split(",").map((o) => o.trim()).filter(Boolean);
       }
+      if (newType === "ai") {
+        body.aiPrompt = newAiPrompt.trim();
+        body.aiConfigId = newAiConfigId || null;
+      }
       const res = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -487,6 +496,8 @@ export default function SettingsPage() {
         setNewType("text");
         setNewGroup("Custom");
         setNewOptions("");
+        setNewAiPrompt("");
+        setNewAiConfigId("");
         toast.success("Property created");
       } else {
         toast.error("Failed to create property");
@@ -589,6 +600,38 @@ export default function SettingsPage() {
             />
           </div>
         )}
+        {newType === "ai" && (
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">AI Prompt</label>
+              <textarea
+                value={newAiPrompt}
+                onChange={(e) => setNewAiPrompt(e.target.value)}
+                placeholder="e.g. Based on this contact's company and job title, determine their likely industry sector"
+                rows={3}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/40 resize-none"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground/60">
+                The AI will receive all the contact&apos;s data along with this prompt to generate the value.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">AI Provider</label>
+              <select
+                value={newAiConfigId}
+                onChange={(e) => setNewAiConfigId(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px] outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Use default</option>
+                {aiConfigs.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({AI_PROVIDERS.find((p) => p.value === c.provider)?.label} — {AI_MODELS[c.provider]?.find((m) => m.value === c.model)?.label || c.model})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Built-in properties */}
@@ -661,6 +704,19 @@ export default function SettingsPage() {
                         ))}
                       </div>
                     )}
+                    {prop.type === "ai" && prop.aiPrompt && (
+                      <div className="mt-1">
+                        <div className="flex items-center gap-1.5">
+                          <Bot className="h-3 w-3 text-muted-foreground/50" />
+                          <span className="text-[11px] text-muted-foreground italic truncate max-w-[400px]">{prop.aiPrompt}</span>
+                        </div>
+                        {prop.aiConfigId && (
+                          <span className="text-[10px] text-muted-foreground/50 ml-[18px]">
+                            Provider: {aiConfigs.find((c) => c.id === prop.aiConfigId)?.name || "Custom"}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -697,7 +753,7 @@ export default function SettingsPage() {
           <button
             key={tab.key}
             type="button"
-            onClick={() => { setActiveTab(tab.key); setNewLabel(""); setNewType("text"); setNewGroup("Custom"); setNewOptions(""); }}
+            onClick={() => { setActiveTab(tab.key); setNewLabel(""); setNewType("text"); setNewGroup("Custom"); setNewOptions(""); setNewAiPrompt(""); setNewAiConfigId(""); }}
             className={`relative px-4 py-2.5 text-[13px] font-medium transition-colors ${
               activeTab === tab.key
                 ? "text-foreground"

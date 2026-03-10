@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Mail, Phone, Building2, Briefcase, Tag, Check, X,
   Pencil, Trash2, ListFilter, GitBranch, Send, Eye, MousePointerClick,
-  AlertTriangle, Clock, Plus, ChevronDown,
+  AlertTriangle, Clock, Plus, ChevronDown, Sparkles, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
   const [companySearch, setCompanySearch] = useState("");
   const [companyOptions, setCompanyOptions] = useState<{ id: string; name: string; domain: string | null }[]>([]);
   const [showCompanyPicker, setShowCompanyPicker] = useState(false);
+  const [generatingProp, setGeneratingProp] = useState<string | null>(null);
 
   const fetchContact = useCallback(async () => {
     const [contactRes, propsRes] = await Promise.all([
@@ -131,6 +132,33 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
       toast.error("Failed to update property");
     }
     setEditing(null);
+  };
+
+  const generateAiProperty = async (prop: ContactProperty) => {
+    if (!contact) return;
+    setGeneratingProp(prop.id);
+    try {
+      const res = await fetch("/api/ai/generate-property", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactId: contact.id, propertyId: prop.id }),
+      });
+      if (res.ok) {
+        const { value } = await res.json();
+        setContact((prev) => prev ? {
+          ...prev,
+          properties: { ...prev.properties, [prop.name]: value },
+        } : prev);
+        toast.success(`Generated: ${prop.label}`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "AI generation failed");
+      }
+    } catch {
+      toast.error("AI generation failed");
+    } finally {
+      setGeneratingProp(null);
+    }
   };
 
   const linkCompany = async (cId: string, cName: string) => {
@@ -552,6 +580,28 @@ export default function ContactDetailPage({ params }: { params: Promise<{ contac
                               </button>
                               <button type="button" onClick={() => setEditing(null)} className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent">
                                 <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : prop.type === "ai" ? (
+                            <div className="flex items-center gap-1.5">
+                              {propValue ? (
+                                <span className="text-[12px] text-foreground max-w-[180px] truncate" title={propValue}>{propValue}</span>
+                              ) : (
+                                <span className="text-[12px] text-muted-foreground/40">—</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => generateAiProperty(prop)}
+                                disabled={generatingProp === prop.id}
+                                className="flex h-6 items-center gap-1 rounded-md border border-border px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                                title={propValue ? "Regenerate with AI" : "Generate with AI"}
+                              >
+                                {generatingProp === prop.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-3 w-3" />
+                                )}
+                                {generatingProp === prop.id ? "" : propValue ? "Redo" : "Generate"}
                               </button>
                             </div>
                           ) : (

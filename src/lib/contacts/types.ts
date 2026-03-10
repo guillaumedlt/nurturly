@@ -11,9 +11,11 @@ export interface ContactProperty {
   id: string;
   name: string;
   label: string;
-  type: "text" | "number" | "date" | "select" | "multi_select" | "boolean" | "url" | "email" | "phone";
+  type: "text" | "number" | "date" | "select" | "multi_select" | "boolean" | "url" | "email" | "phone" | "ai";
   groupName: string;
   options: string[] | null;
+  aiPrompt: string | null;
+  aiConfigId: string | null;
   required: boolean;
   position: number;
 }

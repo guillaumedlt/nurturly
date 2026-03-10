@@ -44,15 +44,18 @@ export async function POST(request: NextRequest) {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
 
+  const propType = body.type || "text";
   const [created] = await db
     .insert(contactProperties)
     .values({
       userId: session.user.id,
       name,
       label: body.label.trim(),
-      type: body.type || "text",
+      type: propType,
       groupName: body.groupName || "Custom",
       options: body.options ? JSON.stringify(body.options) : null,
+      aiPrompt: propType === "ai" ? (body.aiPrompt || null) : null,
+      aiConfigId: propType === "ai" ? (body.aiConfigId || null) : null,
       required: body.required || false,
       position: body.position ?? 0,
     })
@@ -82,6 +85,8 @@ export async function PATCH(request: NextRequest) {
   if (body.options !== undefined) updates.options = body.options ? JSON.stringify(body.options) : null;
   if (body.required !== undefined) updates.required = body.required;
   if (body.position !== undefined) updates.position = body.position;
+  if (body.aiPrompt !== undefined) updates.aiPrompt = body.aiPrompt;
+  if (body.aiConfigId !== undefined) updates.aiConfigId = body.aiConfigId;
 
   const [updated] = await db
     .update(contactProperties)

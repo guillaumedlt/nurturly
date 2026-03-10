@@ -46,7 +46,7 @@ export const contactSourceEnum = pgEnum("contact_source", [
 ]);
 
 export const propertyTypeEnum = pgEnum("property_type", [
-  "text", "number", "date", "select", "multi_select", "boolean", "url", "email", "phone",
+  "text", "number", "date", "select", "multi_select", "boolean", "url", "email", "phone", "ai",
 ]);
 
 // ── NextAuth tables ──
@@ -223,6 +223,8 @@ export const contactProperties = pgTable("contact_properties", {
   type: propertyTypeEnum("type").notNull().default("text"),
   groupName: text("group_name").notNull().default("Custom"),
   options: text("options"), // JSON array for select/multi_select
+  aiPrompt: text("ai_prompt"), // Prompt template for AI-generated properties
+  aiConfigId: text("ai_config_id").references(() => aiConfigurations.id, { onDelete: "set null" }),
   required: boolean("required").default(false).notNull(),
   position: integer("position").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
